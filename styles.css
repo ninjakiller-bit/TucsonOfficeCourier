@@ -1,11 +1,12 @@
-body { font-family: "Inter", system-ui, sans-serif; }
+﻿body { font-family: "Inter", system-ui, sans-serif; }
 
 .hero-bg {
   background: linear-gradient(rgba(0, 0, 0, .72), rgba(0, 0, 0, .82)), url("https://picsum.photos/id/1015/2000/1200") center / cover no-repeat;
 }
 
-.service-card { transition: transform .3s ease, box-shadow .3s ease; }
-.service-card:hover { transform: translateY(-8px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / .12); }
+.service-card { transition: transform .2s ease, box-shadow .2s ease; }
+.service-card--featured { box-shadow: 7px 7px 0 #f97316; }
+.service-card--featured:hover { transform: translate(-4px, -4px); box-shadow: 11px 11px 0 #f97316; }
 
 .nav-link { position: relative; }
 .nav-link::after { content: ""; position: absolute; width: 0; height: 2px; bottom: -4px; left: 0; background: #f97316; transition: width .3s; }
@@ -15,3 +16,5 @@ body { font-family: "Inter", system-ui, sans-serif; }
 .form-input:focus { border-color: #f97316; }
 
 .nav-link-active::after { width: 100%; }
+
+

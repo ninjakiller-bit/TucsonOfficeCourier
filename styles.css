@@ -135,10 +135,11 @@
 .about-backdrop {
   min-height: calc(100vh - 8rem);
   background:
-    linear-gradient(rgb(255 255 255 / .46), rgb(255 255 255 / .56)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.58) 48%, rgba(255, 255, 255, 0.70) 100%),
     url("assets/fox-theatre-tucson-backdrop.webp") center / cover no-repeat;
 }
 .about-content {
   text-shadow: 0 1px 0 rgb(255 255 255 / .55);
 }
+
 

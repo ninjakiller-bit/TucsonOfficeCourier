@@ -32,3 +32,12 @@
 
 .choice-card em { float: right; margin-left: .5rem; color: #c2410c; font-style: normal; }
 
+
+.zone-card { position: relative; min-height: 0; }
+.zone-card > input { position: absolute; opacity: 0; }
+.zone-card-content { display: block; width: 100%; }
+.zone-icon { color: #18181b; font-size: 1rem; }
+.zone-label { display: block; margin-top: .45rem; color: #18181b !important; font-size: .78rem !important; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.zone-miles { display: block; margin-top: .1rem; color: #18181b; font-size: 1.7rem; line-height: 1.05; }
+.zone-price { display: block; margin-top: .15rem; color: #18181b; font-size: 1.9rem; line-height: 1; }
+.zone-note { display: block; margin-top: .5rem; color: #52525b !important; font-size: .75rem !important; line-height: 1rem !important; }

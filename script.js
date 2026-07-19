@@ -3,12 +3,10 @@ const rushButton = document.querySelector('[data-open-rush]');
 const rushForm = document.querySelector('#rush-form');
 const rushSuccess = document.querySelector('#rush-success');
 
-const flatRates = {
-  '0-5': { sameDay: 45, rush: 65 },
-  '6-10': { sameDay: 65, rush: 85 },
-  '11-15': { sameDay: 85, rush: 110 },
-  '16-20': { sameDay: 110, rush: 140 },
-  '21-30': { sameDay: 145, rush: 185 }
+const priceTable = {
+  distance: { '0-5': 10, '6-10': 20, '11-15': 30, '16-20': 35, '21-30': 45 },
+  speed: { rush: 10, 'same-day': 5 },
+  item: { envelope: 2.5, document: 3.75, 'signature-document': 7, package: 10 }
 };
 
 if (rushDialog && rushButton) {
@@ -27,8 +25,13 @@ if (rushForm && rushSuccess) {
     event.preventDefault();
     const formData = new FormData(rushForm);
     const zone = formData.get('distanceZone');
-    const rate = flatRates[zone];
-    rushSuccess.innerHTML = `<strong class="block text-lg">Estimated ${zone}-mile route</strong><div class="mt-4 grid gap-3 sm:grid-cols-2"><div class="rounded-xl bg-white p-4"><span class="block text-sm text-zinc-600">Same-day</span><strong class="text-3xl">$${rate.sameDay}</strong></div><div class="rounded-xl bg-zinc-900 p-4 text-white"><span class="block text-sm text-zinc-300">Rush</span><strong class="text-3xl">$${rate.rush}</strong></div></div><p class="mt-4 text-sm">Estimate only. Final driving distance, service availability, and payment will be confirmed before a delivery is booked.</p>`;
+    const speed = formData.get('speed');
+    const item = formData.get('item');
+    const base = priceTable.distance[zone];
+    const speedFee = priceTable.speed[speed];
+    const itemFee = priceTable.item[item];
+    const total = base + speedFee + itemFee;
+    rushSuccess.innerHTML = `<strong class="block text-lg">Your estimated delivery total</strong><div class="mt-4 rounded-xl bg-white p-4"><div class="flex justify-between text-sm text-zinc-600"><span>Distance zone (${zone} miles)</span><span>$${base.toFixed(2)}</span></div><div class="mt-2 flex justify-between text-sm text-zinc-600"><span>Delivery speed</span><span>$${speedFee.toFixed(2)}</span></div><div class="mt-2 flex justify-between text-sm text-zinc-600"><span>Item handling</span><span>$${itemFee.toFixed(2)}</span></div><div class="mt-4 flex justify-between border-t-2 border-zinc-900 pt-3 text-xl font-extrabold"><span>Estimated total</span><span>$${total.toFixed(2)}</span></div></div><p class="mt-4 text-sm">Estimate only. Final driving distance, service availability, and payment will be confirmed before a delivery is booked.</p>`;
     rushSuccess.classList.remove('hidden');
     rushSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });

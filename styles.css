@@ -27,7 +27,8 @@
 .choice-card strong, .choice-card small { display: block; }
 .choice-card small { margin-top: .2rem; color: #52525b; font-size: .8rem; line-height: 1.25rem; }
 
-.route-input { width: 100%; border: 2px solid #d4d4d8; border-radius: 1rem; padding: .9rem 1rem; outline: none; }
+.route-input { width: 100%; border: 2px solid #18181b; border-radius: 1rem; padding: .9rem 1rem; outline: none; }
 .route-input:focus { border-color: #f97316; }
 
 .choice-card em { float: right; margin-left: .5rem; color: #c2410c; font-style: normal; }
+

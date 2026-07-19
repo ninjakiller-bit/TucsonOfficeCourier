@@ -41,3 +41,34 @@
 .zone-miles { display: block; margin-top: .1rem; color: #18181b; font-size: 1.7rem; line-height: 1.05; }
 .zone-price { display: block; margin-top: .15rem; color: #18181b; font-size: 1.9rem; line-height: 1; }
 .zone-note { display: block; margin-top: .5rem; color: #52525b !important; font-size: .75rem !important; line-height: 1rem !important; }
+
+/* Keeps the page navigation centered even when a page has no phone link. */
+.site-nav-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+}
+.site-nav-menu {
+  grid-column: 2;
+  justify-content: center;
+  white-space: nowrap;
+}
+.site-nav-call {
+  grid-column: 3;
+}
+@media (max-width: 640px) {
+  .site-nav-layout {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .site-nav-call {
+    grid-column: 2;
+  }
+  .site-nav-menu {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: space-between;
+    width: 100%;
+    white-space: normal;
+  }
+}

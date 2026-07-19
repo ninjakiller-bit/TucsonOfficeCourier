@@ -130,3 +130,14 @@
   color: white;
 }
 
+
+/* Local Tucson landmark keeps the About page connected to the city. */
+.about-backdrop {
+  min-height: calc(100vh - 8rem);
+  background:
+    linear-gradient(rgb(255 255 255 / .84), rgb(255 255 255 / .9)),
+    url("assets/fox-theatre-tucson-backdrop.webp") center / cover no-repeat;
+}
+.about-content {
+  text-shadow: 0 1px 0 rgb(255 255 255 / .55);
+}

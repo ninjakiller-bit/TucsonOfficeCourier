@@ -1,0 +1,15 @@
+body { font-family: "Inter", system-ui, sans-serif; }
+
+.hero-bg {
+  background: linear-gradient(rgba(0, 0, 0, .72), rgba(0, 0, 0, .82)), url("https://picsum.photos/id/1015/2000/1200") center / cover no-repeat;
+}
+
+.service-card { transition: transform .3s ease, box-shadow .3s ease; }
+.service-card:hover { transform: translateY(-8px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / .12); }
+
+.nav-link { position: relative; }
+.nav-link::after { content: ""; position: absolute; width: 0; height: 2px; bottom: -4px; left: 0; background: #f97316; transition: width .3s; }
+.nav-link:hover::after { width: 100%; }
+
+.form-input { width: 100%; border: 1px solid #52525b; border-radius: 1rem; background: #18181b; padding: 1rem 1.25rem; outline: none; }
+.form-input:focus { border-color: #f97316; }

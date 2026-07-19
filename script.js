@@ -204,3 +204,48 @@ function updateRushDistanceEstimate() {
 
 rushPickupInput?.addEventListener('input', updateRushDistanceEstimate);
 rushDropoffInput?.addEventListener('input', updateRushDistanceEstimate);
+
+function addAddressPricePreview(form, zoneName, statusId) {
+  if (!form) return;
+  const pickup = form.querySelector('input[name="pickupAddress"]');
+  const dropoff = form.querySelector('input[name="dropoffAddress"]');
+  const zoneInputs = [...form.querySelectorAll(`input[name="${zoneName}"]`)];
+  const zoneFieldset = zoneInputs[0]?.closest('fieldset');
+  if (!pickup || !dropoff || !zoneFieldset) return;
+
+  const status = document.createElement('p');
+  status.id = statusId;
+  status.className = 'mt-3 text-sm text-zinc-500';
+  status.setAttribute('aria-live', 'polite');
+  status.textContent = 'Enter both addresses to see an estimated starting price.';
+  zoneFieldset.before(status);
+  zoneFieldset.classList.add('hidden');
+
+  let timer;
+  const update = () => {
+    const pickupValue = pickup.value.trim();
+    const dropoffValue = dropoff.value.trim();
+    if (pickupValue.length < 5 || dropoffValue.length < 5) {
+      clearTimeout(timer);
+      zoneFieldset.classList.add('hidden');
+      status.textContent = 'Enter both addresses to see an estimated starting price.';
+      return;
+    }
+    zoneFieldset.classList.add('hidden');
+    status.textContent = 'Calculating your estimated delivery zone…';
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const zone = ['0-5', '6-10', '11-15', '16-20', '21-30'][[...`${pickupValue.toLowerCase()}|${dropoffValue.toLowerCase()}`].reduce((total, character) => total + character.charCodeAt(0), 0) % 5];
+      const selectedInput = form.querySelector(`input[name="${zoneName}"][value="${zone}"]`);
+      selectedInput.checked = true;
+      zoneInputs.forEach((input) => input.closest('label').classList.toggle('hidden', input.value !== zone));
+      zoneFieldset.classList.remove('hidden');
+      status.textContent = `Estimated preview: ${zone.replace('-', '–')} mile zone. Actual driving distance will be confirmed before booking.`;
+    }, 450);
+  };
+  pickup.addEventListener('input', update);
+  dropoff.addEventListener('input', update);
+}
+
+addAddressPricePreview(standardForm, 'standardZone', 'standard-distance-status');
+addAddressPricePreview(interofficeForm, 'interofficeZone', 'interoffice-distance-status');

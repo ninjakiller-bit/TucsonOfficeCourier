@@ -141,3 +141,33 @@ if (routesForm && routesSuccess) {
     routesSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 }
+
+const multistopDialog = document.querySelector('#multistop-dialog');
+const multistopButton = document.querySelector('[data-open-multistop]');
+const multistopForm = document.querySelector('#multistop-form');
+const multistopSuccess = document.querySelector('#multistop-success');
+const multistopSchedule = document.querySelector('#multistop-schedule-fields');
+const multistopDate = multistopForm?.querySelector('input[name="deliveryDate"]');
+
+if (multistopDate) multistopDate.min = new Date().toISOString().split('T')[0];
+if (multistopDialog && multistopButton) {
+  multistopButton.addEventListener('click', () => { multistopSuccess?.classList.add('hidden'); multistopDialog.showModal(); });
+  multistopDialog.querySelector('[data-close-multistop]').addEventListener('click', () => multistopDialog.close());
+  multistopDialog.addEventListener('click', (event) => { if (event.target === multistopDialog) multistopDialog.close(); });
+}
+if (multistopForm && multistopSuccess && multistopSchedule) {
+  multistopForm.querySelectorAll('input[name="multiTiming"]').forEach((input) => input.addEventListener('change', () => {
+    const planned = multistopForm.querySelector('input[name="multiTiming"]:checked').value === 'planned';
+    multistopSchedule.classList.toggle('hidden', !planned);
+    multistopDate.required = planned;
+  }));
+  multistopForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const data = new FormData(multistopForm);
+    const timing = data.get('multiTiming') === 'planned' ? 'Planned delivery' : 'Same-day delivery';
+    const itemLabels = { documents: 'Documents & mail', supplies: 'Office supplies', mixed: 'Mixed small items' };
+    multistopSuccess.innerHTML = `<strong class="block text-lg">Your multi-stop request is ready</strong><div class="mt-4 rounded-xl bg-white p-4 text-sm text-zinc-700"><div class="flex justify-between gap-4 border-b border-zinc-200 py-2"><span>Timing</span><strong class="text-right">${timing}</strong></div><div class="flex justify-between gap-4 border-b border-zinc-200 py-2"><span>Route size</span><strong class="text-right">${data.get('stopCount')}</strong></div><div class="flex justify-between gap-4 pt-2"><span>Items</span><strong class="text-right">${itemLabels[data.get('multiItem')]}</strong></div></div><p class="mt-4 text-sm">Multi-stop pricing depends on the route order, stop count, total mileage, and wait time. We will confirm the route and quote before service is booked.</p>`;
+    multistopSuccess.classList.remove('hidden');
+    multistopSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+}

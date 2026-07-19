@@ -273,3 +273,35 @@ document.addEventListener('click', (event) => {
   checkoutButton.classList.add('bg-zinc-700', 'cursor-default');
   checkoutButton.disabled = true;
 });
+
+/* Scheduled Business Routes: price each predictable route clearly before checkout. */
+if (routesForm && routesSuccess) {
+  routesForm.addEventListener('submit', () => {
+    const data = new FormData(routesForm);
+    const base = { daily: 45, weekly: 55, custom: 60 }[data.get('routeFrequency')];
+    const distanceFee = { '0-5': 0, '6-10': 15, '11-15': 30 }[data.get('routeDistance')];
+    const stops = data.get('stopCount');
+    const stopFee = { '2': 0, '3': 10, '4': 20, '5+': 30 }[stops];
+    const handlingFee = data.get('routeItem') === 'mail' ? 0 : 5;
+    const signatureFee = data.get('routeSignature') ? 7 : 0;
+    const afterHoursFee = data.get('routeAfterHours') ? 75 : 0;
+    const needsCustomQuote = data.get('routeDistance') === 'custom';
+
+    if (needsCustomQuote) {
+      routesSuccess.innerHTML = `<strong class="block text-lg">Custom route quote required</strong><p class="mt-3 text-sm">Routes over 15 miles, including Marana and Oro Valley, are priced after we review the stops, total mileage, and schedule. Your request has the details we need for that quote.</p>`;
+      return;
+    }
+
+    const subtotal = base + distanceFee + stopFee + handlingFee + signatureFee + afterHoursFee;
+    const minimumAdjustment = afterHoursFee ? Math.max(0, 125 - subtotal) : 0;
+    const total = subtotal + minimumAdjustment;
+    const frequencyLabel = { daily: 'Daily route', weekly: 'Weekly route', custom: 'Custom route' }[data.get('routeFrequency')];
+    const distanceLine = distanceFee ? `<div class="mt-2 flex justify-between text-sm text-zinc-600"><span>Route mileage</span><span>$${distanceFee.toFixed(2)}</span></div>` : '';
+    const stopLine = stopFee ? `<div class="mt-2 flex justify-between text-sm text-zinc-600"><span>Additional stops</span><span>$${stopFee.toFixed(2)}</span></div>` : '';
+    const handlingLine = handlingFee ? `<div class="mt-2 flex justify-between text-sm text-zinc-600"><span>Item handling</span><span>$${handlingFee.toFixed(2)}</span></div>` : '';
+    const signatureLine = signatureFee ? `<div class="mt-2 flex justify-between text-sm text-zinc-600"><span>Signed proof of delivery</span><span>$${signatureFee.toFixed(2)}</span></div>` : '';
+    const afterHoursLine = afterHoursFee ? `<div class="mt-2 flex justify-between text-sm text-zinc-600"><span>After Hours or Weekend</span><span>$${afterHoursFee.toFixed(2)}</span></div>` : '';
+    const minimumLine = minimumAdjustment ? `<div class="mt-2 flex justify-between text-sm text-zinc-600"><span>After-hours minimum adjustment</span><span>$${minimumAdjustment.toFixed(2)}</span></div>` : '';
+    routesSuccess.innerHTML = `<strong class="block text-lg">Estimated ${frequencyLabel.toLowerCase()} total</strong><div class="mt-4 rounded-xl bg-white p-4"><div class="flex justify-between text-sm text-zinc-600"><span>Base route price</span><span>$${base.toFixed(2)}</span></div>${distanceLine}${stopLine}${handlingLine}${signatureLine}${afterHoursLine}${minimumLine}<div class="mt-4 flex justify-between border-t-2 border-zinc-900 pt-3 text-xl font-extrabold"><span>Estimated total per route</span><span>$${total.toFixed(2)}</span></div></div><p class="mt-4 text-sm">Price is per route. Final mileage, availability, and payment will be confirmed before service is booked.</p>`;
+  });
+}

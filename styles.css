@@ -26,3 +26,6 @@
 .choice-card input { margin-top: .2rem; accent-color: #ea580c; }
 .choice-card strong, .choice-card small { display: block; }
 .choice-card small { margin-top: .2rem; color: #52525b; font-size: .8rem; line-height: 1.25rem; }
+
+.route-input { width: 100%; border: 2px solid #d4d4d8; border-radius: 1rem; padding: .9rem 1rem; outline: none; }
+.route-input:focus { border-color: #f97316; }

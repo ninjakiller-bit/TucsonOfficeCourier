@@ -15,7 +15,8 @@ if (rushForm && rushSuccess) {
   rushForm.addEventListener('submit', (event) => {
     event.preventDefault();
     rushSuccess.classList.remove('hidden');
-    rushForm.querySelector('button[type="submit"]').textContent = 'Checkout setup coming soon';
+    rushForm.querySelector('button[type="submit"]').textContent = 'Distance calculator coming soon';
     rushForm.querySelector('button[type="submit"]').disabled = true;
   });
 }
+

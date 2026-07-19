@@ -13,3 +13,5 @@ body { font-family: "Inter", system-ui, sans-serif; }
 
 .form-input { width: 100%; border: 1px solid #52525b; border-radius: 1rem; background: #18181b; padding: 1rem 1.25rem; outline: none; }
 .form-input:focus { border-color: #f97316; }
+
+.nav-link-active::after { width: 100%; }

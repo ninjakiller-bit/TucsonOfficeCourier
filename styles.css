@@ -97,3 +97,35 @@
   background: rgb(255 255 255 / .94);
   backdrop-filter: blur(4px);
 }
+
+/* Larger familiar symbols and higher-contrast copy make service choices easier to scan. */
+.service-emoji {
+  display: block;
+  margin-bottom: 1.25rem;
+  font-size: 2.5rem;
+  line-height: 1;
+}
+.service-card-description {
+  color: #27272a;
+  font-size: 1.08rem;
+  font-weight: 500;
+  line-height: 1.65;
+}
+.service-card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  margin-top: 1.5rem;
+  border-radius: .75rem;
+  background: #ea580c;
+  padding: .7rem 1rem;
+  color: white;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.2;
+  box-shadow: 0 3px 0 #9a3412;
+}
+.service-card-action:hover {
+  background: #c2410c;
+  color: white;
+}

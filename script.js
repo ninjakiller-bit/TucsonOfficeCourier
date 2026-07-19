@@ -4,9 +4,9 @@ const rushForm = document.querySelector('#rush-form');
 const rushSuccess = document.querySelector('#rush-success');
 
 const priceTable = {
-  distance: { '0-5': 10, '6-10': 20, '11-15': 30, '16-20': 35, '21-30': 45 },
-  speed: { rush: 10, 'same-day': 5 },
-  item: { envelope: 2.5, document: 3.75, 'signature-document': 7, package: 10 }
+  distance: { '0-5': 35, '6-10': 50, '11-15': 65, '16-20': 80, '21-30': 105 },
+  speed: { rush: 20, 'same-day': 0 },
+  item: { envelope: 0, document: 0, 'signature-document': 7, package: 10 }
 };
 
 if (rushDialog && rushButton) {
@@ -36,3 +36,4 @@ if (rushForm && rushSuccess) {
     rushSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 }
+

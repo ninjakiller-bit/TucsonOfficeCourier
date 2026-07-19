@@ -57,18 +57,31 @@ if (standardDialog && standardButton) {
   standardDialog.addEventListener('click', (event) => { if (event.target === standardDialog) standardDialog.close(); });
 }
 if (standardForm && scheduleFields) {
+  const afterHoursFields = document.querySelector('#after-hours-fields');
+  const afterHoursDateTime = document.querySelector('input[name="afterHoursDateTime"]');
+  if (afterHoursDateTime) afterHoursDateTime.min = new Date().toISOString().slice(0, 16);
   standardForm.querySelectorAll('input[name="standardSpeed"]').forEach((input) => input.addEventListener('change', () => {
-    const planned = standardForm.querySelector('input[name="standardSpeed"]:checked').value === 'scheduled';
+    const selected = standardForm.querySelector('input[name="standardSpeed"]:checked').value;
+    const planned = selected === 'scheduled';
+    const afterHours = selected === 'after-hours';
     scheduleFields.classList.toggle('hidden', !planned);
+    afterHoursFields.classList.toggle('hidden', !afterHours);
     scheduledDate.required = planned;
+    afterHoursDateTime.required = afterHours;
   }));
   standardForm.addEventListener('submit', (event) => {
     event.preventDefault();
     const data = new FormData(standardForm); const speed = data.get('standardSpeed'); const zone = data.get('standardZone');
-    const base = speed === 'same-day' ? standardPrices.sameDay[zone] : standardPrices.scheduled[zone];
-    const itemFee = standardPrices.item[data.get('standardItem')]; const total = base + itemFee;
-    const speedLabel = speed === 'same-day' ? 'Same-day delivery' : 'Planned delivery';
-    standardSuccess.innerHTML = `<strong class="block text-lg">Estimated ${speedLabel.toLowerCase()} total</strong><div class="mt-4 rounded-xl bg-white p-4"><div class="flex justify-between text-sm text-zinc-600"><span>Route base (${zone} miles)</span><span>$${base.toFixed(2)}</span></div><div class="mt-2 flex justify-between text-sm text-zinc-600"><span>Item handling</span><span>$${itemFee.toFixed(2)}</span></div><div class="mt-4 flex justify-between border-t-2 border-zinc-900 pt-3 text-xl font-extrabold"><span>Estimated total</span><span>$${total.toFixed(2)}</span></div></div><p class="mt-4 text-sm">Estimate only. Final driving distance, availability, and payment will be confirmed before a delivery is booked.</p>`;
+    const routeBase = speed === 'scheduled' ? standardPrices.scheduled[zone] : standardPrices.sameDay[zone];
+    const itemFee = standardPrices.item[data.get('standardItem')];
+    const afterHoursFee = speed === 'after-hours' ? 75 : 0;
+    const beforeMinimum = routeBase + itemFee + afterHoursFee;
+    const minimumAdjustment = speed === 'after-hours' ? Math.max(0, 125 - beforeMinimum) : 0;
+    const total = beforeMinimum + minimumAdjustment;
+    const speedLabel = speed === 'same-day' ? 'Same-day delivery' : speed === 'scheduled' ? 'Planned delivery' : 'After-hours delivery';
+    const afterHoursLine = afterHoursFee ? `<div class="mt-2 flex justify-between text-sm text-zinc-600"><span>After-hours fee</span><span>${afterHoursFee.toFixed(2)}</span></div>` : '';
+    const minimumLine = minimumAdjustment ? `<div class="mt-2 flex justify-between text-sm text-zinc-600"><span>After-hours minimum adjustment</span><span>${minimumAdjustment.toFixed(2)}</span></div>` : '';
+    standardSuccess.innerHTML = `<strong class="block text-lg">Estimated ${speedLabel.toLowerCase()} total</strong><div class="mt-4 rounded-xl bg-white p-4"><div class="flex justify-between text-sm text-zinc-600"><span>Route base (${zone} miles)</span><span>${routeBase.toFixed(2)}</span></div><div class="mt-2 flex justify-between text-sm text-zinc-600"><span>Item handling</span><span>${itemFee.toFixed(2)}</span></div>${afterHoursLine}${minimumLine}<div class="mt-4 flex justify-between border-t-2 border-zinc-900 pt-3 text-xl font-extrabold"><span>Estimated total</span><span>${total.toFixed(2)}</span></div></div><p class="mt-4 text-sm">Estimate only. Final driving distance, availability, and payment will be confirmed before a delivery is booked.</p>`;
     standardSuccess.classList.remove('hidden'); standardSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 }

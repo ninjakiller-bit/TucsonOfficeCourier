@@ -72,3 +72,28 @@
     white-space: normal;
   }
 }
+
+/* Soft city-inspired backdrop keeps the delivery choices clear and easy to scan. */
+.services-grid-section {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 8% 15%, rgb(255 255 255 / .95) 0 11%, transparent 35%),
+    radial-gradient(circle at 86% 82%, rgb(191 219 254 / .7) 0 4%, transparent 30%),
+    linear-gradient(135deg, #dbeafe 0%, #f8fafc 46%, #dbeafe 100%);
+}
+.services-grid-section::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  z-index: -1;
+  height: 45%;
+  opacity: .18;
+  background: repeating-linear-gradient(90deg, #64748b 0 20px, transparent 20px 46px), linear-gradient(to top, #94a3b8, transparent);
+  clip-path: polygon(0 58%, 5% 39%, 10% 54%, 16% 24%, 22% 49%, 29% 12%, 36% 42%, 43% 27%, 51% 53%, 58% 17%, 65% 45%, 73% 9%, 81% 48%, 88% 30%, 95% 55%, 100% 22%, 100% 100%, 0 100%);
+}
+.services-grid-section .service-card {
+  background: rgb(255 255 255 / .94);
+  backdrop-filter: blur(4px);
+}

@@ -85,3 +85,37 @@ if (standardForm && scheduleFields) {
     standardSuccess.classList.remove('hidden'); standardSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 }
+
+const interofficeDialog = document.querySelector('#interoffice-dialog');
+const interofficeButton = document.querySelector('[data-open-interoffice]');
+const interofficeForm = document.querySelector('#interoffice-form');
+const interofficeSuccess = document.querySelector('#interoffice-success');
+const interofficeSchedule = document.querySelector('#interoffice-schedule-fields');
+const interofficeAfterHours = document.querySelector('#interoffice-after-hours-fields');
+const interofficeDate = interofficeForm?.querySelector('input[name="deliveryDate"]');
+const interofficeAfterHoursDate = interofficeForm?.querySelector('input[name="afterHoursDateTime"]');
+
+if (interofficeDate) interofficeDate.min = new Date().toISOString().split('T')[0];
+if (interofficeAfterHoursDate) interofficeAfterHoursDate.min = new Date().toISOString().slice(0, 16);
+if (interofficeDialog && interofficeButton) {
+  interofficeButton.addEventListener('click', () => { interofficeSuccess?.classList.add('hidden'); interofficeDialog.showModal(); });
+  interofficeDialog.querySelector('[data-close-interoffice]').addEventListener('click', () => interofficeDialog.close());
+  interofficeDialog.addEventListener('click', (event) => { if (event.target === interofficeDialog) interofficeDialog.close(); });
+}
+if (interofficeForm && interofficeSchedule && interofficeAfterHours) {
+  interofficeForm.querySelectorAll('input[name="interofficeSpeed"]').forEach((input) => input.addEventListener('change', () => {
+    const selected = interofficeForm.querySelector('input[name="interofficeSpeed"]:checked').value;
+    const planned = selected === 'scheduled'; const afterHours = selected === 'after-hours';
+    interofficeSchedule.classList.toggle('hidden', !planned); interofficeAfterHours.classList.toggle('hidden', !afterHours);
+    interofficeDate.required = planned; interofficeAfterHoursDate.required = afterHours;
+  }));
+  interofficeForm.addEventListener('submit', (event) => {
+    event.preventDefault(); const data = new FormData(interofficeForm); const speed = data.get('interofficeSpeed'); const zone = data.get('interofficeZone');
+    const routeBase = speed === 'scheduled' ? standardPrices.scheduled[zone] : standardPrices.sameDay[zone];
+    const itemFee = { mail: 0, signature: 7, package: 10 }[data.get('interofficeItem')]; const afterFee = speed === 'after-hours' ? 75 : 0;
+    const preliminary = routeBase + itemFee + afterFee; const minimum = speed === 'after-hours' ? Math.max(0, 125 - preliminary) : 0; const total = preliminary + minimum;
+    const afterLine = afterFee ? `<div class="mt-2 flex justify-between text-sm text-zinc-600"><span>After-hours fee</span><span>$${afterFee.toFixed(2)}</span></div>` : ''; const minimumLine = minimum ? `<div class="mt-2 flex justify-between text-sm text-zinc-600"><span>After-hours minimum adjustment</span><span>$${minimum.toFixed(2)}</span></div>` : '';
+    interofficeSuccess.innerHTML = `<strong class="block text-lg">Estimated mail-run total</strong><div class="mt-4 rounded-xl bg-white p-4"><div class="flex justify-between text-sm text-zinc-600"><span>Route base (${zone} miles)</span><span>$${routeBase.toFixed(2)}</span></div><div class="mt-2 flex justify-between text-sm text-zinc-600"><span>Item handling</span><span>$${itemFee.toFixed(2)}</span></div>${afterLine}${minimumLine}<div class="mt-4 flex justify-between border-t-2 border-zinc-900 pt-3 text-xl font-extrabold"><span>Estimated total</span><span>$${total.toFixed(2)}</span></div></div><p class="mt-4 text-sm">Estimate only. Final driving distance, availability, and payment will be confirmed before a delivery is booked.</p>`;
+    interofficeSuccess.classList.remove('hidden'); interofficeSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+}

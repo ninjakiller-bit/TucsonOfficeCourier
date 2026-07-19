@@ -119,3 +119,25 @@ if (interofficeForm && interofficeSchedule && interofficeAfterHours) {
     interofficeSuccess.classList.remove('hidden'); interofficeSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 }
+
+const routesDialog = document.querySelector('#routes-dialog');
+const routesButton = document.querySelector('[data-open-routes]');
+const routesForm = document.querySelector('#routes-form');
+const routesSuccess = document.querySelector('#routes-success');
+
+if (routesDialog && routesButton) {
+  routesButton.addEventListener('click', () => { routesSuccess?.classList.add('hidden'); routesDialog.showModal(); });
+  routesDialog.querySelector('[data-close-routes]').addEventListener('click', () => routesDialog.close());
+  routesDialog.addEventListener('click', (event) => { if (event.target === routesDialog) routesDialog.close(); });
+}
+if (routesForm && routesSuccess) {
+  routesForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const data = new FormData(routesForm);
+    const frequencyLabels = { daily: 'Daily, Monday–Friday', weekly: 'Weekly recurring route', custom: 'Custom recurring route' };
+    const itemLabels = { mail: 'Mail & documents', supplies: 'Office supplies', mixed: 'Mixed office items' };
+    routesSuccess.innerHTML = `<strong class="block text-lg">Your route request is ready</strong><div class="mt-4 rounded-xl bg-white p-4 text-sm text-zinc-700"><div class="flex justify-between gap-4 border-b border-zinc-200 py-2"><span>Frequency</span><strong class="text-right">${frequencyLabels[data.get('routeFrequency')]}</strong></div><div class="flex justify-between gap-4 border-b border-zinc-200 py-2"><span>Preferred pickup</span><strong class="text-right">${data.get('pickupWindow')}</strong></div><div class="flex justify-between gap-4 border-b border-zinc-200 py-2"><span>Planned stops</span><strong class="text-right">${data.get('stopCount')}</strong></div><div class="flex justify-between gap-4 pt-2"><span>Items</span><strong class="text-right">${itemLabels[data.get('routeItem')]}</strong></div></div><p class="mt-4 text-sm">Route pricing depends on stops, schedule, and mileage. We will confirm availability and provide a recurring-route quote before service is booked.</p>`;
+    routesSuccess.classList.remove('hidden');
+    routesSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+}

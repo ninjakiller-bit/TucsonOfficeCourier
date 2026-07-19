@@ -102,7 +102,7 @@
 .service-emoji {
   display: block;
   margin-bottom: 1.25rem;
-  font-size: 2.5rem;
+  font-size: 4rem;
   line-height: 1;
 }
 .service-card-description {
@@ -129,3 +129,4 @@
   background: #c2410c;
   color: white;
 }
+

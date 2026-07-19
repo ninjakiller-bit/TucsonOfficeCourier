@@ -249,3 +249,27 @@ function addAddressPricePreview(form, zoneName, statusId) {
 
 addAddressPricePreview(standardForm, 'standardZone', 'standard-distance-status');
 addAddressPricePreview(interofficeForm, 'interofficeZone', 'interoffice-distance-status');
+
+const pricedCheckoutForms = [
+  { form: rushForm, success: rushSuccess },
+  { form: standardForm, success: standardSuccess },
+  { form: interofficeForm, success: interofficeSuccess }
+];
+
+pricedCheckoutForms.forEach(({ form, success }) => {
+  form?.addEventListener('submit', () => {
+    requestAnimationFrame(() => {
+      if (!success || success.querySelector('[data-demo-stripe-checkout]')) return;
+      success.insertAdjacentHTML('beforeend', '<button type="button" data-demo-stripe-checkout class="mt-5 w-full rounded-2xl bg-violet-600 px-5 py-3 font-bold text-white transition hover:bg-violet-700"><i class="fa-solid fa-lock mr-2"></i>Continue to secure checkout</button><p class="mt-2 text-center text-xs text-zinc-600">Demo checkout button — no payment will be collected.</p>');
+    });
+  });
+});
+
+document.addEventListener('click', (event) => {
+  const checkoutButton = event.target.closest('[data-demo-stripe-checkout]');
+  if (!checkoutButton) return;
+  checkoutButton.innerHTML = '<i class="fa-solid fa-circle-check mr-2"></i>Stripe checkout demo — coming soon';
+  checkoutButton.classList.remove('bg-violet-600', 'hover:bg-violet-700');
+  checkoutButton.classList.add('bg-zinc-700', 'cursor-default');
+  checkoutButton.disabled = true;
+});

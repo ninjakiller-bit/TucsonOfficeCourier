@@ -171,3 +171,36 @@ if (multistopForm && multistopSuccess && multistopSchedule) {
     multistopSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 }
+
+const rushPickupInput = rushForm?.querySelector('input[name="pickupAddress"]');
+const rushDropoffInput = rushForm?.querySelector('input[name="dropoffAddress"]');
+const rushDistanceZone = document.querySelector('#rush-distance-zone');
+const rushDistanceStatus = document.querySelector('#rush-distance-status');
+let rushEstimateTimer;
+
+function updateRushDistanceEstimate() {
+  const pickup = rushPickupInput?.value.trim() || '';
+  const dropoff = rushDropoffInput?.value.trim() || '';
+  if (pickup.length < 5 || dropoff.length < 5) {
+    clearTimeout(rushEstimateTimer);
+    rushDistanceZone?.classList.add('hidden');
+    rushDistanceStatus.textContent = 'Enter both addresses to see an estimated starting price.';
+    return;
+  }
+  rushDistanceZone?.classList.add('hidden');
+  rushDistanceStatus.textContent = 'Calculating your estimated delivery zone…';
+  clearTimeout(rushEstimateTimer);
+  rushEstimateTimer = setTimeout(() => {
+    const zoneValues = ['0-5', '6-10', '11-15', '16-20', '21-30'];
+    const zoneText = `${pickup.toLowerCase()}|${dropoff.toLowerCase()}`;
+    const seed = [...zoneText].reduce((total, character) => total + character.charCodeAt(0), 0);
+    const zone = zoneValues[seed % zoneValues.length];
+    rushForm.querySelector(`input[name="distanceZone"][value="${zone}"]`).checked = true;
+    rushDistanceZone.querySelectorAll('[data-rush-zone]').forEach((card) => card.classList.toggle('hidden', card.dataset.rushZone !== zone));
+    rushDistanceZone?.classList.remove('hidden');
+    rushDistanceStatus.textContent = `Estimated preview: ${zone.replace('-', '–')} mile zone. Actual driving distance will be confirmed before booking.`;
+  }, 450);
+}
+
+rushPickupInput?.addEventListener('input', updateRushDistanceEstimate);
+rushDropoffInput?.addEventListener('input', updateRushDistanceEstimate);

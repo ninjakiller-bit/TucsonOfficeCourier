@@ -308,6 +308,7 @@ if (routesForm && routesSuccess) {
 
 /* Keep the Rush total visible and current as the customer changes options. */
 const rushLiveTotal = document.querySelector('#rush-live-total');
+const rushLiveBreakdown = document.querySelector('#rush-live-breakdown');
 function updateRushLiveEstimate() {
   if (!rushForm || !rushLiveTotal) return;
   const selectedZone = rushForm.querySelector('input[name="distanceZone"]:checked')?.value;
@@ -320,7 +321,6 @@ rushForm?.querySelectorAll('input[name="distanceZone"], input[name="speed"], inp
 updateRushLiveEstimate();
 
 
-const rushLiveBreakdown = document.querySelector('#rush-live-breakdown');
 const rushCopyPickupButton = document.querySelector('[data-copy-pickup]');
 rushCopyPickupButton?.addEventListener('click', () => {
   if (!rushPickupInput || !rushDropoffInput) return;
@@ -328,4 +328,5 @@ rushCopyPickupButton?.addEventListener('click', () => {
   rushDropoffInput.dispatchEvent(new Event('input', { bubbles: true }));
 });
 rushForm?.querySelector('button[type="submit"]') && (rushForm.querySelector('button[type="submit"]').innerHTML = 'Continue to Review &amp; Pay <i class="fa-solid fa-arrow-right ml-2"></i>');
+
 

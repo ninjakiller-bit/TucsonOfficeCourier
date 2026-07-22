@@ -314,8 +314,18 @@ function updateRushLiveEstimate() {
   const selectedSpeed = rushForm.querySelector('input[name="speed"]:checked')?.value;
   const selectedItem = rushForm.querySelector('input[name="item"]:checked')?.value;
   const total = priceTable.distance[selectedZone] + priceTable.speed[selectedSpeed] + priceTable.item[selectedItem];
-  rushLiveTotal.textContent = `$${total.toFixed(2)}`;
+  rushLiveTotal.textContent = `$${total.toFixed(2)}`; if (rushLiveBreakdown) { const speedLabel = selectedSpeed === 'rush' ? 'Rush $20' : 'Same Day included'; const itemLabels = { envelope: 'Item included', document: 'Item included', 'signature-document': 'Signature +$7', package: 'Package +$10' }; rushLiveBreakdown.textContent = `Route $${priceTable.distance[selectedZone]} · ${speedLabel} · ${itemLabels[selectedItem]}`; }
 }
 rushForm?.querySelectorAll('input[name="distanceZone"], input[name="speed"], input[name="item"]').forEach((input) => input.addEventListener('change', updateRushLiveEstimate));
 updateRushLiveEstimate();
+
+
+const rushLiveBreakdown = document.querySelector('#rush-live-breakdown');
+const rushCopyPickupButton = document.querySelector('[data-copy-pickup]');
+rushCopyPickupButton?.addEventListener('click', () => {
+  if (!rushPickupInput || !rushDropoffInput) return;
+  rushDropoffInput.value = rushPickupInput.value;
+  rushDropoffInput.dispatchEvent(new Event('input', { bubbles: true }));
+});
+rushForm?.querySelector('button[type="submit"]') && (rushForm.querySelector('button[type="submit"]').innerHTML = 'Continue to Review &amp; Pay <i class="fa-solid fa-arrow-right ml-2"></i>');
 

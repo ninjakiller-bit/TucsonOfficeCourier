@@ -195,7 +195,7 @@ function updateRushDistanceEstimate() {
     const zoneText = `${pickup.toLowerCase()}|${dropoff.toLowerCase()}`;
     const seed = [...zoneText].reduce((total, character) => total + character.charCodeAt(0), 0);
     const zone = zoneValues[seed % zoneValues.length];
-    rushForm.querySelector(`input[name="distanceZone"][value="${zone}"]`).checked = true;
+    rushForm.querySelector(`input[name="distanceZone"][value="${zone}"]`).checked = true; updateRushLiveEstimate();
     rushDistanceZone.querySelectorAll('[data-rush-zone]').forEach((card) => card.classList.toggle('hidden', card.dataset.rushZone !== zone));
     rushDistanceZone?.classList.remove('hidden');
     rushDistanceStatus.textContent = `Estimated preview: ${zone.replace('-', '–')} mile zone. Actual driving distance will be confirmed before booking.`;
@@ -305,3 +305,17 @@ if (routesForm && routesSuccess) {
     routesSuccess.innerHTML = `<strong class="block text-lg">Estimated ${frequencyLabel.toLowerCase()} total</strong><div class="mt-4 rounded-xl bg-white p-4"><div class="flex justify-between text-sm text-zinc-600"><span>Base route price</span><span>$${base.toFixed(2)}</span></div>${distanceLine}${stopLine}${handlingLine}${signatureLine}${afterHoursLine}${minimumLine}<div class="mt-4 flex justify-between border-t-2 border-zinc-900 pt-3 text-xl font-extrabold"><span>Estimated total per route</span><span>$${total.toFixed(2)}</span></div></div><p class="mt-4 text-sm">Price is per route. Final mileage, availability, and payment will be confirmed before service is booked.</p>`;
   });
 }
+
+/* Keep the Rush total visible and current as the customer changes options. */
+const rushLiveTotal = document.querySelector('#rush-live-total');
+function updateRushLiveEstimate() {
+  if (!rushForm || !rushLiveTotal) return;
+  const selectedZone = rushForm.querySelector('input[name="distanceZone"]:checked')?.value;
+  const selectedSpeed = rushForm.querySelector('input[name="speed"]:checked')?.value;
+  const selectedItem = rushForm.querySelector('input[name="item"]:checked')?.value;
+  const total = priceTable.distance[selectedZone] + priceTable.speed[selectedSpeed] + priceTable.item[selectedItem];
+  rushLiveTotal.textContent = `$${total.toFixed(2)}`;
+}
+rushForm?.querySelectorAll('input[name="distanceZone"], input[name="speed"], input[name="item"]').forEach((input) => input.addEventListener('change', updateRushLiveEstimate));
+updateRushLiveEstimate();
+

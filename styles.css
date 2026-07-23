@@ -172,3 +172,18 @@
 .rush-review-row { display: flex; justify-content: space-between; gap: 1rem; padding: .55rem 0; border-bottom: 1px solid #e4e4e7; color: #52525b; }
 .rush-review-row:last-child { border-bottom: 0; }
 .rush-review-row strong { max-width: 68%; color: #18181b; text-align: right; }
+
+/* Compact details screen: mirrors a clean checkout instead of a long questionnaire. */
+.rush-compact { font-size: .9rem; }
+.rush-compact fieldset > legend { margin-bottom: .55rem; font-size: .9rem; }
+.rush-compact .choice-card { gap: .55rem; min-height: 0; border-width: 1px; border-radius: .7rem; padding: .72rem .78rem; }
+.rush-compact .choice-card:has(input:checked) { border-width: 2px; }
+.rush-compact .choice-card input { margin-top: .1rem; }
+.rush-compact .choice-card strong { font-size: .86rem; }
+.rush-compact .choice-card small { margin-top: .16rem; font-size: .74rem; line-height: 1.05rem; }
+.rush-compact .route-input { border-width: 1px; border-color: #d1d5db; border-radius: .55rem; padding: .62rem .72rem; font-size: .88rem; }
+.rush-compact textarea.route-input { min-height: 2.8rem; }
+.rush-compact #rush-live-estimate { border: 0; }
+.rush-compact #rush-live-total { color: #111827; font-size: 1.45rem; }
+.rush-compact #rush-live-breakdown { display: none; }
+.rush-compact #rush-live-estimate p { margin-top: .25rem; }

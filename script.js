@@ -327,7 +327,7 @@ rushCopyPickupButton?.addEventListener('click', () => {
   rushDropoffInput.value = rushPickupInput.value;
   rushDropoffInput.dispatchEvent(new Event('input', { bubbles: true }));
 });
-rushForm?.querySelector('button[type="submit"]') && (rushForm.querySelector('button[type="submit"]').innerHTML = 'Continue to Review &amp; Pay <i class="fa-solid fa-arrow-right ml-2"></i>');
+rushForm?.querySelector('button[type="submit"]') && (rushForm.querySelector('button[type="submit"]').textContent = 'Continue to pricing');
 
 
 
@@ -357,3 +357,4 @@ document.querySelector('[data-rush-checkout]')?.addEventListener('click', () => 
 document.querySelector('[data-rush-start-over]')?.addEventListener('click', () => { rushForm?.reset(); updateRushLiveEstimate(); showRushStep(1); });
 rushButton?.addEventListener('click', () => showRushStep(1));
 showRushStep(1);
+

@@ -199,3 +199,37 @@
 .rush-compact fieldset > legend {
   font-weight: 600;
 }
+
+/* Shared compact checkout styling for every non-Rush request form. */
+#standard-form, #interoffice-form, #routes-form, #multistop-form {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: .9rem;
+}
+#standard-form fieldset > legend, #interoffice-form fieldset > legend, #routes-form fieldset > legend, #multistop-form fieldset > legend {
+  margin-bottom: .55rem;
+  font-size: .9rem;
+}
+#standard-form .choice-card, #interoffice-form .choice-card, #routes-form .choice-card, #multistop-form .choice-card {
+  gap: .55rem;
+  min-height: 0;
+  border-width: 1px;
+  border-radius: .7rem;
+  padding: .72rem .78rem;
+}
+#standard-form .choice-card:has(input:checked), #interoffice-form .choice-card:has(input:checked), #routes-form .choice-card:has(input:checked), #multistop-form .choice-card:has(input:checked) {
+  border-width: 2px;
+}
+#standard-form .choice-card input, #interoffice-form .choice-card input, #routes-form .choice-card input, #multistop-form .choice-card input { margin-top: .1rem; }
+#standard-form .choice-card strong, #interoffice-form .choice-card strong, #routes-form .choice-card strong, #multistop-form .choice-card strong { font-size: .86rem; }
+#standard-form .choice-card small, #interoffice-form .choice-card small, #routes-form .choice-card small, #multistop-form .choice-card small { margin-top: .16rem; font-size: .74rem; line-height: 1.05rem; }
+#standard-form .route-input, #interoffice-form .route-input, #routes-form .route-input, #multistop-form .route-input {
+  border-width: 1px;
+  border-color: #d1d5db;
+  border-radius: .55rem;
+  padding: .62rem .72rem;
+  font-size: .88rem;
+}
+#standard-form textarea, #interoffice-form textarea, #routes-form textarea, #multistop-form textarea {
+  border-radius: .55rem !important;
+  font-size: .88rem;
+}

@@ -233,3 +233,11 @@
   border-radius: .55rem !important;
   font-size: .88rem;
 }
+
+/* Shared progress bar for every delivery request form. */
+.form-step-indicator { display: flex; align-items: center; gap: .45rem; margin: 0 2.5rem 1.25rem 0; }
+.form-step-indicator span { display: flex; align-items: center; gap: .35rem; color: #a1a1aa; font-size: .78rem; font-weight: 700; white-space: nowrap; }
+.form-step-indicator b { display: inline-flex; align-items: center; justify-content: center; width: 1.35rem; height: 1.35rem; border: 1px solid #d4d4d8; border-radius: 999px; font-size: .7rem; }
+.form-step-indicator i { flex: 1; height: 1px; background: #e4e4e7; }
+.form-step-indicator .is-active { color: #ea580c; }
+.form-step-indicator .is-active b { border-color: #ea580c; background: #fff7ed; }

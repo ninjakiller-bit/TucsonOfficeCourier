@@ -187,3 +187,15 @@
 .rush-compact #rush-live-total { color: #111827; font-size: 1.45rem; }
 .rush-compact #rush-live-breakdown { display: none; }
 .rush-compact #rush-live-estimate p { margin-top: .25rem; }
+
+/* Match the compact system type and calmer hierarchy of the approved form example. */
+.rush-dialog {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.rush-dialog [data-rush-step="1"] > h2 {
+  letter-spacing: -.02em;
+}
+.rush-compact label > span,
+.rush-compact fieldset > legend {
+  font-weight: 600;
+}

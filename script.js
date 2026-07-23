@@ -330,3 +330,30 @@ rushCopyPickupButton?.addEventListener('click', () => {
 rushForm?.querySelector('button[type="submit"]') && (rushForm.querySelector('button[type="submit"]').innerHTML = 'Continue to Review &amp; Pay <i class="fa-solid fa-arrow-right ml-2"></i>');
 
 
+
+/* Three-step Rush checkout flow: details, review, then secure checkout. */
+const rushSteps = [...document.querySelectorAll('[data-rush-step]')];
+const rushIndicators = [...document.querySelectorAll('[data-rush-indicator]')];
+function showRushStep(step) {
+  rushSteps.forEach((panel) => panel.classList.toggle('hidden', Number(panel.dataset.rushStep) !== step));
+  rushIndicators.forEach((indicator) => {
+    const number = Number(indicator.dataset.rushIndicator);
+    indicator.classList.toggle('is-active', number === step);
+    indicator.classList.toggle('is-done', number < step);
+  });
+}
+function money(value) { return `$${value.toFixed(2)}`; }
+function fillRushReview() {
+  const data = new FormData(rushForm);
+  const zone = data.get('distanceZone'); const speed = data.get('speed'); const item = data.get('item');
+  const base = priceTable.distance[zone]; const speedFee = priceTable.speed[speed]; const itemFee = priceTable.item[item];
+  const labels = { rush: 'Rush', 'same-day': 'Same Day', envelope: 'Envelope', document: 'Documents', 'signature-document': 'Documents + Signature', package: 'Package' };
+  const review = (name, value) => { const element = document.querySelector(`[data-review="${name}"]`); if (element) element.textContent = value; };
+  review('pickup', data.get('pickupAddress')); review('dropoff', data.get('dropoffAddress')); review('contact', `${data.get('contactName')} · ${data.get('contactPhone')}`); review('speed', labels[speed]); review('item', labels[item]); review('base', money(base)); review('speed-fee', speedFee ? money(speedFee) : 'Included'); review('item-fee', itemFee ? money(itemFee) : 'Included'); review('total', money(base + speedFee + itemFee));
+}
+rushForm?.addEventListener('submit', () => { requestAnimationFrame(() => { rushSuccess?.classList.add('hidden'); fillRushReview(); showRushStep(2); }); });
+document.querySelector('[data-rush-back]')?.addEventListener('click', () => showRushStep(1));
+document.querySelector('[data-rush-checkout]')?.addEventListener('click', () => showRushStep(3));
+document.querySelector('[data-rush-start-over]')?.addEventListener('click', () => { rushForm?.reset(); updateRushLiveEstimate(); showRushStep(1); });
+rushButton?.addEventListener('click', () => showRushStep(1));
+showRushStep(1);

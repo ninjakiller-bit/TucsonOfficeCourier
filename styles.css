@@ -249,3 +249,12 @@
 /* Keep option choices calm; reserve bold type for form section headings. */
 .choice-card strong { font-weight: 500; }
 .choice-card em { font-weight: 500; }
+
+/* Actual regular-weight form controls: only titles and section legends remain emphasized. */
+#rush-form label > span { font-weight: 400; }
+#rush-form fieldset > legend { font-weight: 500; }
+#rush-form .choice-card strong, #rush-form .choice-card em { font-weight: 400; }
+#rush-form .choice-card small { font-weight: 400; }
+#standard-form label > span, #interoffice-form label > span, #routes-form label > span, #multistop-form label > span { font-weight: 400; }
+#standard-form fieldset > legend, #interoffice-form fieldset > legend, #routes-form fieldset > legend, #multistop-form fieldset > legend { font-weight: 500; }
+#standard-form .choice-card strong, #standard-form .choice-card em, #interoffice-form .choice-card strong, #interoffice-form .choice-card em, #routes-form .choice-card strong, #routes-form .choice-card em, #multistop-form .choice-card strong, #multistop-form .choice-card em { font-weight: 400; }

@@ -241,3 +241,7 @@
 .form-step-indicator i { flex: 1; height: 1px; background: #e4e4e7; }
 .form-step-indicator .is-active { color: #ea580c; }
 .form-step-indicator .is-active b { border-color: #ea580c; background: #fff7ed; }
+
+/* Price amounts only highlight when their option is selected. */
+.choice-card em { color: #64748b; }
+.choice-card:has(input:checked) em { color: #ea580c; }

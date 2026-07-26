@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: tucson-office-courier
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: RESEND_API_KEY
+        sync: false
+      - key: CONTACT_TO_EMAIL
+        sync: false
+      - key: CONTACT_FROM_EMAIL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: OPENROUTESERVICE_API_KEY
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false

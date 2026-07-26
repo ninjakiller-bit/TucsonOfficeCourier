@@ -490,17 +490,39 @@ async function createStripeCheckout(request, response) {
       body: parameters
     });
     const session = await stripeResponse.json();
-    if (!stripeResponse.ok || !session.url) throw new Error(`STRIPE_${stripeResponse.status}`);
+    if (!stripeResponse.ok || !session.url) {
+      const stripeError = new Error("STRIPE_API_ERROR");
+      stripeError.status = stripeResponse.status;
+      stripeError.type = cleanText(session?.error?.type, 100);
+      stripeError.code = cleanText(session?.error?.code, 100);
+      stripeError.param = cleanText(session?.error?.param, 100);
+      console.error("Stripe Checkout error", {
+        status: stripeError.status,
+        type: stripeError.type,
+        code: stripeError.code,
+        param: stripeError.param
+      });
+      throw stripeError;
+    }
     sendJson(response, 200, { ok: true, checkoutUrl: session.url, requestId });
   } catch (error) {
     const customQuote = error.message === "CUSTOM_DISTANCE" || error.message === "CUSTOM_QUOTE";
     const validation = ["MISSING_FIELDS", "INVALID_EMAIL", "INVALID_WEIGHT", "MISSING_STOPS"].includes(error.message);
+    const stripeAuthentication = error.message === "STRIPE_API_ERROR" && error.status === 401;
+    const stripePermission = error.message === "STRIPE_API_ERROR" && error.status === 403;
+    const stripeParameter = error.message === "STRIPE_API_ERROR" && error.status === 400 && error.param;
     sendJson(response, customQuote ? 422 : validation ? 400 : 500, {
       ok: false,
       message: customQuote
         ? "This route needs a custom quote before payment."
         : validation
           ? "Please review the required delivery and contact details."
+          : stripeAuthentication
+            ? "Stripe rejected the sandbox secret key. Confirm STRIPE_SECRET_KEY starts with sk_test_ and was copied in full."
+            : stripePermission
+              ? "The Stripe sandbox key cannot create Checkout Sessions. Use a full-access test secret key."
+              : stripeParameter
+                ? `Stripe rejected the ${error.param} checkout setting.`
           : "Secure checkout could not be started. Please try again shortly."
     });
   }

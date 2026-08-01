@@ -50,7 +50,13 @@ async function loadAddressSuggestions(inputElement,results){
   if(query.length<3)return;
   try{
     const response=await fetch('/api/address-autocomplete?q='+encodeURIComponent(query));
-    const data=await response.json();
+    const responseText=await response.text();
+    let data;
+    try{
+      data=JSON.parse(responseText);
+    }catch{
+      throw new Error(`Address search is temporarily unavailable (HTTP ${response.status}).`);
+    }
     if(!response.ok)throw new Error(data.message||'Address search is unavailable.');
     results.innerHTML=(data.suggestions||[]).map((suggestion,index)=>`<button type="button" role="option" data-index="${index}" class="block min-h-[48px] w-full border-b border-slate-100 px-4 py-3 text-left text-sm leading-5 last:border-0 hover:bg-orange-50 focus:bg-orange-50">${escapeHtml(suggestion.label)}</button>`).join('');
     if(!results.innerHTML){results.classList.add('hidden');return}
@@ -85,7 +91,13 @@ async function calculateDistance(){
   if(status)status.innerHTML='<span class="font-semibold text-slate-800">Calculating driving mileage…</span>';
   try{
     const response=await fetch('/api/delivery-distance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceKey:state.serviceKey,fields:{pickup,dropoff},stops})});
-    const data=await response.json();
+    const responseText=await response.text();
+    let data;
+    try{
+      data=JSON.parse(responseText);
+    }catch{
+      throw new Error(`Mileage service is temporarily unavailable (HTTP ${response.status}).`);
+    }
     if(!response.ok)throw new Error(data.message||'Mileage could not be calculated.');
     state.distance=data;
     if(data.customQuote){
@@ -270,7 +282,13 @@ async function beginCheckout(draft){
   message.textContent='Verifying the addresses, mileage, and final price…';
   try{
     const response=await fetch('/api/create-checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(draft)});
-    const data=await response.json();
+    const responseText=await response.text();
+    let data;
+    try{
+      data=JSON.parse(responseText);
+    }catch{
+      throw new Error(`Checkout service is temporarily unavailable (HTTP ${response.status}). Please wait a moment and try again.`);
+    }
     if(!response.ok||!data.checkoutUrl)throw new Error(data.message||'Secure checkout could not be opened.');
     message.textContent='Redirecting to Stripe secure checkout…';
     window.location.assign(data.checkoutUrl);

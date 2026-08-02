@@ -18,10 +18,10 @@ const geocodeCache = new Map();
 const processedStripeEvents = new Set();
 const maxBodySize = 30_000;
 const serviceBounds = {
-  minLon: -111.35,
-  minLat: 31.95,
-  maxLon: -110.65,
-  maxLat: 32.6
+  minLon: -112.8,
+  minLat: 30.7,
+  maxLon: -109.2,
+  maxLat: 33.8
 };
 
 const serviceNames = {
@@ -298,7 +298,17 @@ async function routeAddresses(addresses, suppliedCoordinates = null) {
   const meters = Number(data.routes?.[0]?.summary?.distance);
   if (!Number.isFinite(meters) || meters <= 0) throw new Error("ROUTE_NOT_FOUND");
   const miles = meters / 1609.344;
-  const zoneIndex = miles <= 5 ? 0 : miles <= 10 ? 1 : miles <= 15 ? 2 : miles <= 20 ? 3 : miles <= 30 ? 4 : 5;
+  const zoneIndex = miles <= 5 ? 0
+    : miles <= 10 ? 1
+      : miles <= 15 ? 2
+        : miles <= 20 ? 3
+          : miles <= 30 ? 4
+            : miles <= 40 ? 5
+              : miles <= 50 ? 6
+                : miles <= 60 ? 7
+                  : miles <= 75 ? 8
+                    : miles <= 100 ? 9
+                      : 10;
   return {
     miles: Number(miles.toFixed(1)),
     zoneIndex,
@@ -416,11 +426,13 @@ async function handleDistance(request, response) {
       return;
     }
     const route = await routeAddresses(addresses, deliveryCoordinates(body));
+    const serviceKey = cleanText(body?.serviceKey, 30);
+    const customQuote = route.zoneIndex === 10 || (serviceKey === "routes" && route.zoneIndex > 2);
     sendJson(response, 200, {
       ok: true,
       miles: route.miles,
       zoneIndex: route.zoneIndex,
-      customQuote: route.zoneIndex === 5,
+      customQuote,
       verifiedAddresses: route.labels,
       coordinates: route.coordinates
     });
@@ -469,13 +481,13 @@ function checkoutAmount(body, route) {
   const { fields, serviceKey } = validateCheckoutFields(body);
   const pricing = body.pricing || {};
   const zone = route.zoneIndex;
-  if (zone > 4) throw new Error("CUSTOM_DISTANCE");
+  if (zone > 9) throw new Error("CUSTOM_DISTANCE");
   const handling = itemFee(cleanText(fields.type, 80));
   let total = 0;
   const parts = [];
 
   if (serviceKey === "rush") {
-    const base = [35, 50, 65, 80, 105][zone];
+    const base = [35, 50, 65, 80, 105, 135, 165, 195, 240, 315][zone];
     const rushFee = integerIndex(pricing.timingIndex, 1) === 0 ? 20 : 0;
     total = base + rushFee + handling;
     parts.push(`${route.miles} driving miles`, `distance $${base}`, rushFee ? "rush $20" : "same day included");
@@ -492,8 +504,8 @@ function checkoutAmount(body, route) {
     parts.push(`${route.miles} route miles`, `base route $${base}`, `route additions $${distance + stops + proof + after}`);
   } else {
     const timing = integerIndex(pricing.timingIndex, 2);
-    const planned = [25, 35, 45, 55, 70];
-    const sameDay = [30, 45, 60, 75, 95];
+    const planned = [25, 35, 45, 55, 70, 115, 145, 175, 210, 275];
+    const sameDay = [30, 45, 60, 75, 95, 125, 155, 185, 225, 295];
     const afterHours = timing === 2;
     const base = timing === 1 ? planned[zone] : sameDay[zone];
     total = base + handling + (afterHours ? 75 : 0);
@@ -521,7 +533,7 @@ async function createStripeCheckout(request, response) {
     });
     return;
   }
-  if (!allowedByRateLimit(clientAddress(request), 20, "checkout")) {
+  if (!allowedByRateLimit(clientAddress(request), 60, "checkout")) {
     sendJson(response, 429, { ok: false, message: "Please wait before starting another checkout." });
     return;
   }

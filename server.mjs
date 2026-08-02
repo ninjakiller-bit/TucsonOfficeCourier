@@ -15,6 +15,7 @@ const orsKey = process.env.OPENROUTESERVICE_API_KEY || "";
 const configuredBaseUrl = (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
 const rateLimit = new Map();
 const geocodeCache = new Map();
+const autocompleteCache = new Map();
 const processedStripeEvents = new Set();
 const maxBodySize = 30_000;
 const serviceBounds = {
@@ -53,7 +54,7 @@ function securityHeaders(contentType = "text/plain; charset=utf-8") {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "SAMEORIGIN",
     "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(self)",
     "Content-Security-Policy":
       "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'"
   };
@@ -108,6 +109,39 @@ function insideServiceBoundary(coordinates) {
   return Number.isFinite(lon) && Number.isFinite(lat)
     && lon >= serviceBounds.minLon && lon <= serviceBounds.maxLon
     && lat >= serviceBounds.minLat && lat <= serviceBounds.maxLat;
+}
+
+function milesFromTucson(coordinates) {
+  const [lon, lat] = Array.isArray(coordinates) ? coordinates.map(Number) : [];
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return Infinity;
+  const toRadians = (degrees) => degrees * Math.PI / 180;
+  const lat1 = toRadians(32.2226);
+  const lat2 = toRadians(lat);
+  const deltaLat = lat2 - lat1;
+  const deltaLon = toRadians(lon + 110.9747);
+  const a = Math.sin(deltaLat / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+  return 3958.8 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function isArizonaAddress(feature) {
+  const properties = feature?.properties || {};
+  const region = cleanText(properties.region_a || properties.region, 40).toUpperCase();
+  const label = cleanText(properties.label, 300).toUpperCase();
+  return region === "AZ" || region === "ARIZONA" || /,\s*AZ(?:\s|,|$)/.test(label);
+}
+
+function tucsonSearchText(query) {
+  const hasLocation = /\b(?:AZ|ARIZONA|TUCSON|MARANA|ORO VALLEY|SAHUARITA|GREEN VALLEY|VAIL|BENSON|NOGALES|SIERRA VISTA|CASA GRANDE)\b/i.test(query);
+  return hasLocation ? query : `${query}, Tucson, AZ`;
+}
+
+function addressPriority(feature) {
+  const properties = feature?.properties || {};
+  const place = cleanText(properties.locality || properties.localadmin || properties.county, 100).toLowerCase();
+  if (place.includes("tucson")) return 0;
+  if (/marana|oro valley|sahuarita|green valley|vail/.test(place)) return 1;
+  return 2;
 }
 
 function escapeHtml(value) {
@@ -355,19 +389,35 @@ async function handleAutocomplete(request, response) {
     return;
   }
 
+  const searchText = tucsonSearchText(query);
+  const cacheKey = searchText.toLowerCase();
+  const cached = autocompleteCache.get(cacheKey);
+  if (cached && Date.now() - cached.savedAt < 10 * 60 * 1000) {
+    sendJson(response, 200, { ok: true, suggestions: cached.suggestions });
+    return;
+  }
+
   try {
     const url = new URL("https://api.openrouteservice.org/geocode/autocomplete");
-    url.searchParams.set("text", query);
-    url.searchParams.set("size", "6");
+    url.searchParams.set("text", searchText);
+    url.searchParams.set("size", "10");
     url.searchParams.set("boundary.country", "US");
     url.searchParams.set("focus.point.lon", "-110.9747");
     url.searchParams.set("focus.point.lat", "32.2226");
     addServiceBoundary(url);
     const data = await orsRequest(url);
-    const suggestions = (data.features || []).map((feature) => ({
-      label: cleanText(feature.properties?.label, 300),
-      coordinates: feature.geometry?.coordinates
-    })).filter((entry) => entry.label && insideServiceBoundary(entry.coordinates));
+    const suggestions = (data.features || [])
+      .filter((feature) => isArizonaAddress(feature)
+        && insideServiceBoundary(feature.geometry?.coordinates)
+        && milesFromTucson(feature.geometry?.coordinates) <= 110)
+      .sort((left, right) => addressPriority(left) - addressPriority(right)
+        || Number(right.properties?.confidence || 0) - Number(left.properties?.confidence || 0))
+      .slice(0, 6)
+      .map((feature) => ({
+        label: cleanText(feature.properties?.label, 300),
+        coordinates: feature.geometry?.coordinates.map(Number)
+      }));
+    autocompleteCache.set(cacheKey, { savedAt: Date.now(), suggestions });
     sendJson(response, 200, { ok: true, suggestions });
   } catch {
     sendJson(response, 502, { ok: false, message: "Address suggestions are temporarily unavailable." });

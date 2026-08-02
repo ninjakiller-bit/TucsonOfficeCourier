@@ -23,14 +23,17 @@ function requestProgress(step){
 }
 function form(){let s=state.active;state.distance=null;title.textContent=s.t;let addresses=s.multi?`<fieldset><legend class="mb-4 text-lg font-extrabold">Route addresses</legend>${input('pickup','Pickup address')}<div class="mt-5 flex items-center justify-between"><h3 class="font-semibold">Delivery stops</h3><button id="add" type="button" class="rounded-lg border border-brand px-3 py-2 text-sm font-bold text-brand">Add another stop</button></div><div id="stops" class="mt-3 space-y-3"></div></fieldset>`:`<fieldset><legend class="mb-4 text-lg font-extrabold">Where is this delivery going?</legend><div class="grid gap-4 sm:grid-cols-2">${input('pickup','Pickup address')}${input('dropoff','Drop-off address')}</div></fieldset>`;let details=s.custom?`<div>${input('item','What service do you need?')}</div>`:`<fieldset id="package-details" class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Package details</legend><div class="grid gap-4 sm:grid-cols-2">${select('type','What are we moving?',['Documents or records','Envelope or mail pouch','Documents with signature','Office supplies','Package'])}${input('weight','Estimated weight in pounds','number',true,'min="0.1" max="10" step="0.1"')}</div><p class="mt-3 text-sm text-slate-500">Packages entered through the quick-order form are limited to 10 lb.</p></fieldset>`;let route=s.route?`<fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Route schedule</legend><div class="grid gap-4 sm:grid-cols-2">${select('frequency','How often is this route needed?',['Daily, Monday through Friday — $45 per route','Weekly — $55 per route','Custom schedule — from $60'])}${select('window','Preferred pickup window',['8 AM–10 AM','10 AM–12 PM','12 PM–2 PM','2 PM–5 PM','After hours'])}</div></fieldset>`:'';content.innerHTML=`${requestProgress(1)}<form id="f" class="space-y-6" novalidate>${addresses}<div id="distance-status" class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600" role="status" aria-live="polite">Choose verified pickup and drop-off addresses to calculate driving mileage automatically.</div><fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Preferred date and pickup time</legend><div class="grid gap-4 sm:grid-cols-2">${input('date','Preferred date','date','true','min="'+new Date().toISOString().split('T')[0]+'"')}${input('time','Preferred pickup time','time')}</div></fieldset>${route}${details}<div class="border-t border-slate-200 pt-6"><label class="mb-1.5 block text-sm font-semibold" for="notes">Special instructions</label><textarea id="notes" name="notes" rows="4" maxlength="500" class="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-brand focus:ring-4 focus:ring-orange-100"></textarea><p class="mt-2 text-xs text-slate-500">Examples: front desk delivery, call on arrival, access instructions, or fragile handling.</p></div><fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Contact details</legend><div class="grid gap-4 sm:grid-cols-2">${input('name','Contact name')}${input('phone','Phone number','tel',true,'inputmode="tel" autocomplete="tel"') }</div><div class="mt-4">${input('email','Email address','email',true,'autocomplete="email"')}</div></fieldset><button type="submit" class="w-full rounded-lg bg-brand px-5 py-3.5 font-bold text-white shadow hover:bg-orange-500">Continue to review →</button></form>`;installPickupLocationButton();installAddressFormatHint();installDistanceCard();if(s.multi){stopUI();document.querySelector('#add').onclick=()=>{state.stops.push('');stopUI()}}installPricing(s);installAddressAutocomplete();document.querySelector('#f').onsubmit=submit}
 
-let addressTimer=0,distanceTimer=0;
+const addressTimers=new WeakMap();
+const addressRequests=new WeakMap();
+const addressSuggestionCache=new Map();
+let distanceTimer=0;
 function installAddressFormatHint(){
   const fieldset=document.querySelector('#pickup')?.closest('fieldset');
   if(!fieldset||fieldset.querySelector('[data-address-hint]'))return;
   const hint=document.createElement('p');
   hint.dataset.addressHint='true';
   hint.className='mt-3 text-sm leading-5 text-slate-600';
-  hint.innerHTML='<strong>Address format:</strong> street number, street name, city, state, ZIP.<br><span class="text-slate-500">Example: 2801 E Lee St, Tucson, AZ 85716. Select the matching suggestion.</span>';
+  hint.innerHTML='<strong>Address format:</strong> street number, street name, city, state, ZIP.<br><span class="text-slate-500">Example: 2801 E Lee St, Tucson, AZ 85716. Select a suggestion or finish typing the complete address.</span>';
   fieldset.append(hint);
 }
 function installDistanceCard(){
@@ -122,10 +125,18 @@ function installAddressAutocomplete(){
       inputElement.dataset.verified='';
       delete inputElement.dataset.lon;
       delete inputElement.dataset.lat;
+      addressRequests.get(inputElement)?.abort();
       results.classList.add('hidden');
-      clearTimeout(addressTimer);
-      addressTimer=setTimeout(()=>loadAddressSuggestions(inputElement,results),300);
+      clearTimeout(addressTimers.get(inputElement));
+      addressTimers.set(inputElement,setTimeout(()=>loadAddressSuggestions(inputElement,results),300));
       scheduleDistance();
+    });
+    inputElement.addEventListener('keydown',event=>{
+      if(event.key!=='Enter'||results.classList.contains('hidden'))return;
+      const firstSuggestion=results.querySelector('button[data-index]');
+      if(!firstSuggestion)return;
+      event.preventDefault();
+      firstSuggestion.click();
     });
     inputElement.addEventListener('blur',()=>setTimeout(()=>results.classList.add('hidden'),180));
   });
@@ -133,8 +144,20 @@ function installAddressAutocomplete(){
 async function loadAddressSuggestions(inputElement,results){
   const query=inputElement.value.trim();
   if(query.length<3)return;
+  const cacheKey=query.toLowerCase();
+  const cached=addressSuggestionCache.get(cacheKey);
+  if(cached){
+    showAddressSuggestions(inputElement,results,cached);
+    return;
+  }
+  const controller=new AbortController();
+  addressRequests.get(inputElement)?.abort();
+  addressRequests.set(inputElement,controller);
+  results.innerHTML='<p class="px-4 py-3 text-sm font-semibold text-slate-600">Searching Tucson-area addresses…</p>';
+  results.classList.remove('hidden');
+  inputElement.setAttribute('aria-expanded','true');
   try{
-    const response=await fetch('/api/address-autocomplete?q='+encodeURIComponent(query));
+    const response=await fetch('/api/address-autocomplete?q='+encodeURIComponent(query),{signal:controller.signal});
     const responseText=await response.text();
     let data;
     try{
@@ -143,26 +166,39 @@ async function loadAddressSuggestions(inputElement,results){
       throw new Error(`Address search is temporarily unavailable (HTTP ${response.status}).`);
     }
     if(!response.ok)throw new Error(data.message||'Address search is unavailable.');
-    results.innerHTML=(data.suggestions||[]).map((suggestion,index)=>`<button type="button" role="option" data-index="${index}" class="block min-h-[48px] w-full border-b border-slate-100 px-4 py-3 text-left text-sm leading-5 last:border-0 hover:bg-orange-50 focus:bg-orange-50">${escapeHtml(suggestion.label)}</button>`).join('');
-    if(!results.innerHTML){results.classList.add('hidden');return}
-    results.classList.remove('hidden');
-    inputElement.setAttribute('aria-expanded','true');
-    results.querySelectorAll('button').forEach(button=>button.addEventListener('mousedown',event=>{
-      event.preventDefault();
-      const suggestion=data.suggestions[Number(button.dataset.index)];
-      inputElement.value=suggestion.label;
-      inputElement.dataset.verified='true';
-      inputElement.dataset.lon=String(suggestion.coordinates[0]);
-      inputElement.dataset.lat=String(suggestion.coordinates[1]);
-      inputElement.setAttribute('aria-expanded','false');
-      results.classList.add('hidden');
-      if(inputElement.id.startsWith('stop'))state.stops[Number(inputElement.id.replace('stop',''))]=suggestion.label;
-      scheduleDistance(50);
-    }));
+    if(inputElement.value.trim()!==query)return;
+    const suggestions=data.suggestions||[];
+    addressSuggestionCache.set(cacheKey,suggestions);
+    showAddressSuggestions(inputElement,results,suggestions);
   }catch(error){
+    if(error.name==='AbortError')return;
     results.innerHTML=`<p class="px-4 py-3 text-sm text-slate-600">${escapeHtml(error.message)}</p>`;
     results.classList.remove('hidden');
   }
+}
+function showAddressSuggestions(inputElement,results,suggestions){
+    results.innerHTML=suggestions.map((suggestion,index)=>`<button type="button" role="option" data-index="${index}" class="block min-h-[48px] w-full border-b border-slate-100 px-4 py-3 text-left text-sm leading-5 last:border-0 hover:bg-orange-50 focus:bg-orange-50">${escapeHtml(suggestion.label)}</button>`).join('');
+    if(!results.innerHTML){
+      results.innerHTML='<p class="px-4 py-3 text-sm text-slate-600">No nearby Arizona address found. Add the city and ZIP code, then try again.</p>';
+      results.classList.remove('hidden');
+      return;
+    }
+    results.classList.remove('hidden');
+    inputElement.setAttribute('aria-expanded','true');
+    results.querySelectorAll('button').forEach(button=>{
+      button.addEventListener('mousedown',event=>event.preventDefault());
+      button.addEventListener('click',()=>{
+        const suggestion=suggestions[Number(button.dataset.index)];
+        inputElement.value=suggestion.label;
+        inputElement.dataset.verified='true';
+        inputElement.dataset.lon=String(suggestion.coordinates[0]);
+        inputElement.dataset.lat=String(suggestion.coordinates[1]);
+        inputElement.setAttribute('aria-expanded','false');
+        results.classList.add('hidden');
+        if(inputElement.id.startsWith('stop'))state.stops[Number(inputElement.id.replace('stop',''))]=suggestion.label;
+        scheduleDistance(50);
+      });
+    });
 }
 function scheduleDistance(delay=500){
   clearTimeout(distanceTimer);
@@ -177,17 +213,11 @@ async function calculateDistance(){
   const ready=state.active?.multi?pickup.length>4&&stops.length>=2&&stops.every(value=>value.trim().length>4):pickup.length>4&&dropoff.length>4;
   if(!ready)return;
   const status=document.querySelector('#distance-status');
-  const verified=state.active?.multi
-    ? pickupElement?.dataset.verified==='true'&&[...document.querySelectorAll('[id^="stop"]')].every(element=>element.dataset.verified==='true')
-    : pickupElement?.dataset.verified==='true'&&dropoffElement?.dataset.verified==='true';
-  if(!verified){
-    if(status)status.innerHTML='<strong class="text-slate-800">Select the matching address suggestions.</strong><span class="mt-1 block">Mileage starts after every address is verified.</span>';
-    return;
-  }
   const coordinateElements=state.active?.multi
     ? [pickupElement,...document.querySelectorAll('[id^="stop"]')]
     : [pickupElement,dropoffElement];
-  const coordinates=coordinateElements.map(element=>[Number(element.dataset.lon),Number(element.dataset.lat)]);
+  const selectedCoordinates=coordinateElements.every(element=>Number.isFinite(Number(element?.dataset.lon))&&Number.isFinite(Number(element?.dataset.lat)));
+  const coordinates=selectedCoordinates?coordinateElements.map(element=>[Number(element.dataset.lon),Number(element.dataset.lat)]):undefined;
   if(status)status.innerHTML='<span class="font-semibold text-slate-800">Calculating driving mileage…</span>';
   try{
     const response=await fetch('/api/delivery-distance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceKey:state.serviceKey,fields:{pickup,dropoff},stops,coordinates})});
@@ -199,6 +229,17 @@ async function calculateDistance(){
       throw new Error(`Mileage service is temporarily unavailable (HTTP ${response.status}).`);
     }
     if(!response.ok)throw new Error(data.message||'Mileage could not be calculated.');
+    if(Array.isArray(data.labels)&&Array.isArray(data.coordinates)){
+      coordinateElements.forEach((element,index)=>{
+        const resolvedCoordinates=data.coordinates[index];
+        if(!element||!data.labels[index]||!Array.isArray(resolvedCoordinates))return;
+        element.value=data.labels[index];
+        element.dataset.verified='true';
+        element.dataset.lon=String(resolvedCoordinates[0]);
+        element.dataset.lat=String(resolvedCoordinates[1]);
+        if(element.id.startsWith('stop'))state.stops[Number(element.id.replace('stop',''))]=data.labels[index];
+      });
+    }
     state.distance=data;
     renderDistanceCard(data);
     if(data.customQuote){
@@ -292,15 +333,9 @@ function submit(e){
   const formElement=e.currentTarget;
   if(!formElement.checkValidity()){formElement.reportValidity();return}
   if(!state.active.custom){
-    const unverified=addressInputs().find(element=>element.dataset.verified!=='true');
     const status=document.querySelector('#distance-status');
-    if(unverified){
-      if(status)status.innerHTML='<strong class="text-red-700">Select every address from the suggestion list.</strong><span class="mt-1 block">The order cannot continue until pickup and delivery addresses are verified.</span>';
-      unverified.focus();
-      return;
-    }
     if(!state.distance){
-      if(status)status.innerHTML='<strong class="text-red-700">Mileage has not been calculated.</strong><span class="mt-1 block">Wait for the mileage estimate before continuing.</span>';
+      if(status)status.innerHTML='<strong class="text-red-700">The addresses are still being verified.</strong><span class="mt-1 block">Please wait for the driving-mileage estimate before continuing.</span>';
       scheduleDistance(50);
       return;
     }

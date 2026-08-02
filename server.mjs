@@ -279,8 +279,15 @@ async function geocodeAddress(address) {
   return result;
 }
 
-async function routeAddresses(addresses) {
-  const geocoded = await Promise.all(addresses.map(geocodeAddress));
+async function routeAddresses(addresses, suppliedCoordinates = null) {
+  const supplied = Array.isArray(suppliedCoordinates)
+    && suppliedCoordinates.length === addresses.length
+    && suppliedCoordinates.every(insideServiceBoundary)
+    ? suppliedCoordinates.map((coordinates) => coordinates.map(Number))
+    : null;
+  const geocoded = supplied
+    ? addresses.map((label, index) => ({ label, coordinates: supplied[index] }))
+    : await Promise.all(addresses.map(geocodeAddress));
   const data = await orsRequest(
     "https://api.openrouteservice.org/v2/directions/driving-car",
     {
@@ -295,7 +302,8 @@ async function routeAddresses(addresses) {
   return {
     miles: Number(miles.toFixed(1)),
     zoneIndex,
-    labels: geocoded.map((entry) => entry.label)
+    labels: geocoded.map((entry) => entry.label),
+    coordinates: geocoded.map((entry) => entry.coordinates)
   };
 }
 
@@ -308,6 +316,17 @@ function deliveryAddresses(body) {
     return [pickup, ...stops];
   }
   return [pickup, cleanText(fields.dropoff, 300)];
+}
+
+function deliveryCoordinates(body) {
+  const addresses = deliveryAddresses(body);
+  const source = Array.isArray(body?.coordinates)
+    ? body.coordinates
+    : Array.isArray(body?.distance?.coordinates)
+      ? body.distance.coordinates
+      : [];
+  if (source.length !== addresses.length || !source.every(insideServiceBoundary)) return null;
+  return source.map((coordinates) => coordinates.map(Number));
 }
 
 async function handleAutocomplete(request, response) {
@@ -373,7 +392,7 @@ async function handleReverseGeocode(request, response) {
     const coordinates = feature?.geometry?.coordinates;
     const address = cleanText(feature?.properties?.label, 300);
     if (!address || !insideServiceBoundary(coordinates)) throw new Error("LOCATION_NOT_FOUND");
-    sendJson(response, 200, { ok: true, address });
+    sendJson(response, 200, { ok: true, address, coordinates: coordinates.map(Number) });
   } catch {
     sendJson(response, 502, { ok: false, message: "Your current address could not be identified." });
   }
@@ -396,13 +415,14 @@ async function handleDistance(request, response) {
       sendJson(response, 400, { ok: false, message: "Enter a complete pickup and drop-off address." });
       return;
     }
-    const route = await routeAddresses(addresses);
+    const route = await routeAddresses(addresses, deliveryCoordinates(body));
     sendJson(response, 200, {
       ok: true,
       miles: route.miles,
       zoneIndex: route.zoneIndex,
       customQuote: route.zoneIndex === 5,
-      verifiedAddresses: route.labels
+      verifiedAddresses: route.labels,
+      coordinates: route.coordinates
     });
   } catch (error) {
     const status = error.message === "REQUEST_TOO_LARGE" ? 413 : 422;
@@ -509,7 +529,10 @@ async function createStripeCheckout(request, response) {
   try {
     const body = await readJsonBody(request);
     const { fields, serviceKey } = validateCheckoutFields(body);
-    const route = await routeAddresses(deliveryAddresses(body));
+    const addresses = deliveryAddresses(body);
+    const selectedRoute = await routeAddresses(addresses, deliveryCoordinates(body));
+    const lookupRoute = await routeAddresses(addresses);
+    const route = selectedRoute.miles >= lookupRoute.miles ? selectedRoute : lookupRoute;
     const price = checkoutAmount(body, route);
     const requestId = `TOC-${randomUUID().slice(0, 8).toUpperCase()}`;
     const baseUrl = requestBaseUrl(request);

@@ -8,7 +8,7 @@
 const services={rush:{i:'⚡',t:'Rush and On Demand Delivery',d:'Priority local pickup and direct delivery for time-sensitive documents and small packages.',b:'Start a delivery request',rush:true},documents:{i:'📄',t:'Documents & Office Packages',d:'Reliable delivery for contracts, records, office supplies, and everyday business packages.',b:'Plan a delivery',limit:10},mail:{i:'🏢',t:'Inter Office Mail Runs',d:'Secure pickup and delivery between company locations, departments, clients, and partner offices.',b:'Plan a mail run'},routes:{i:'🗓️',t:'Scheduled Business Routes',d:'Daily, weekly, or custom business routes starting at $45 per route.',b:'Build a route request',route:true},multi:{i:'🚚',t:'Multi Stop Deliveries',d:'One coordinated route for multiple pickups and drop-offs across your business network.',b:'Plan a multi stop route',multi:true},custom:{i:'💬',t:'Need Something Different?',d:'Tell us about a specialized delivery need and we will help you plan the right solution.',b:'Request a future quote',custom:true}};
 const state={active:null,serviceKey:'',trigger:null,stops:['',''],requests:[],count:0,draft:null,distance:null};const cards=document.querySelector('#cards'),modal=document.querySelector('#modal'),content=document.querySelector('#content'),title=document.querySelector('#mt');
 cards.innerHTML=Object.entries(services).map(([k,s])=>`<article class="card flex min-h-[300px] flex-col rounded-xl border ${s.custom?'border-slate-800 bg-orange-50':'border-slate-300 bg-white'} p-7"><div><div class="text-4xl" aria-hidden="true">${s.i}</div><h2 class="mt-5 text-2xl font-extrabold leading-tight tracking-[-.025em]">${s.t}</h2><p class="mt-4 text-base leading-7 text-slate-700">${s.d}</p></div><button type="button" data-service="${k}" class="open mt-auto w-fit rounded-md bg-brand px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-200">${s.b} →</button></article>`).join('');
-const input=(n,l,t='text',req=true,x='')=>`<div><label class="mb-1.5 block text-sm font-semibold" for="${n}">${l}${req?' <span class="text-brand">*</span>':''}</label><input id="${n}" name="${n}" type="${t}" ${req?'required':''} ${x} class="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-brand focus:ring-4 focus:ring-orange-100"></div>`;
+const input=(n,l,t='text',req=true,x='')=>{const addressExample=n==='pickup'||n==='dropoff'||n.startsWith('stop')?'placeholder="Example: 2801 E Lee St, Tucson, AZ 85716"':'';return `<div><label class="mb-1.5 block text-sm font-semibold" for="${n}">${l}${req?' <span class="text-brand">*</span>':''}</label><input id="${n}" name="${n}" type="${t}" ${req?'required':''} ${addressExample} ${x} class="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-brand focus:ring-4 focus:ring-orange-100"></div>`};
 const select=(n,l,opts)=>`<div><label class="mb-1.5 block text-sm font-semibold" for="${n}">${l} <span class="text-brand">*</span></label><select id="${n}" name="${n}" required class="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none focus:border-brand focus:ring-4 focus:ring-orange-100">${opts.map(o=>`<option value="${o}">${o}</option>`).join('')}</select></div>`;
 function stopUI(){let box=document.querySelector('#stops');box.innerHTML=state.stops.map((v,i)=>`<div class="flex gap-3"><div class="min-w-0 flex-1">${input('stop'+i,'Stop '+(i+1)+' address')} </div><button type="button" data-r="${i}" ${state.stops.length===2?'disabled':''} class="mt-7 rounded-lg border border-slate-300 px-3 text-sm font-bold disabled:opacity-40">Remove</button></div>`).join('');box.querySelectorAll('input').forEach((e,i)=>{e.value=state.stops[i];e.oninput=()=>{state.stops[i]=e.value;scheduleDistance()}});box.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{state.stops.splice(+b.dataset.r,1);stopUI();updateEstimate();scheduleDistance()});installAddressAutocomplete();updateEstimate()}
 
@@ -48,6 +48,8 @@ function useCurrentPickupLocation(button,pickup){
       if(!response.ok||!data.address)throw new Error(data.message||'Your current address could not be identified.');
       pickup.value=data.address;
       pickup.dataset.verified='true';
+      pickup.dataset.lon=String(data.coordinates[0]);
+      pickup.dataset.lat=String(data.coordinates[1]);
       button.textContent='✓ Current location added';
       if(status)status.textContent='Pickup verified. Choose a verified drop-off address to calculate mileage.';
       scheduleDistance(50);
@@ -81,6 +83,8 @@ function installAddressAutocomplete(){
     inputElement.insertAdjacentElement('afterend',results);
     inputElement.addEventListener('input',()=>{
       inputElement.dataset.verified='';
+      delete inputElement.dataset.lon;
+      delete inputElement.dataset.lat;
       results.classList.add('hidden');
       clearTimeout(addressTimer);
       addressTimer=setTimeout(()=>loadAddressSuggestions(inputElement,results),300);
@@ -111,6 +115,8 @@ async function loadAddressSuggestions(inputElement,results){
       const suggestion=data.suggestions[Number(button.dataset.index)];
       inputElement.value=suggestion.label;
       inputElement.dataset.verified='true';
+      inputElement.dataset.lon=String(suggestion.coordinates[0]);
+      inputElement.dataset.lat=String(suggestion.coordinates[1]);
       inputElement.setAttribute('aria-expanded','false');
       results.classList.add('hidden');
       if(inputElement.id.startsWith('stop'))state.stops[Number(inputElement.id.replace('stop',''))]=suggestion.label;
@@ -141,9 +147,13 @@ async function calculateDistance(){
     if(status)status.innerHTML='<strong class="text-slate-800">Select the matching address suggestions.</strong><span class="mt-1 block">Mileage starts after every address is verified.</span>';
     return;
   }
+  const coordinateElements=state.active?.multi
+    ? [pickupElement,...document.querySelectorAll('[id^="stop"]')]
+    : [pickupElement,dropoffElement];
+  const coordinates=coordinateElements.map(element=>[Number(element.dataset.lon),Number(element.dataset.lat)]);
   if(status)status.innerHTML='<span class="font-semibold text-slate-800">Calculating driving mileage…</span>';
   try{
-    const response=await fetch('/api/delivery-distance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceKey:state.serviceKey,fields:{pickup,dropoff},stops})});
+    const response=await fetch('/api/delivery-distance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceKey:state.serviceKey,fields:{pickup,dropoff},stops,coordinates})});
     const responseText=await response.text();
     let data;
     try{

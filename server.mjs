@@ -17,6 +17,12 @@ const rateLimit = new Map();
 const geocodeCache = new Map();
 const processedStripeEvents = new Set();
 const maxBodySize = 30_000;
+const serviceBounds = {
+  minLon: -111.35,
+  minLat: 31.95,
+  maxLon: -110.65,
+  maxLat: 32.6
+};
 
 const serviceNames = {
   rush: "Rush and On Demand Delivery",
@@ -75,18 +81,33 @@ function clientAddress(request) {
     .trim();
 }
 
-function allowedByRateLimit(address, maximum = 12) {
+function allowedByRateLimit(address, maximum = 12, scope = "general") {
   const now = Date.now();
   const period = 15 * 60 * 1000;
-  const existing = rateLimit.get(address);
+  const key = `${scope}:${address}`;
+  const existing = rateLimit.get(key);
 
   if (!existing || now - existing.startedAt >= period) {
-    rateLimit.set(address, { startedAt: now, attempts: 1 });
+    rateLimit.set(key, { startedAt: now, attempts: 1 });
     return true;
   }
 
   existing.attempts += 1;
   return existing.attempts <= maximum;
+}
+
+function addServiceBoundary(url) {
+  url.searchParams.set("boundary.rect.min_lon", String(serviceBounds.minLon));
+  url.searchParams.set("boundary.rect.min_lat", String(serviceBounds.minLat));
+  url.searchParams.set("boundary.rect.max_lon", String(serviceBounds.maxLon));
+  url.searchParams.set("boundary.rect.max_lat", String(serviceBounds.maxLat));
+}
+
+function insideServiceBoundary(coordinates) {
+  const [lon, lat] = Array.isArray(coordinates) ? coordinates.map(Number) : [];
+  return Number.isFinite(lon) && Number.isFinite(lat)
+    && lon >= serviceBounds.minLon && lon <= serviceBounds.maxLon
+    && lat >= serviceBounds.minLat && lat <= serviceBounds.maxLat;
 }
 
 function escapeHtml(value) {
@@ -165,7 +186,7 @@ async function sendContactEmail(contact) {
 }
 
 async function handleContact(request, response) {
-  if (!allowedByRateLimit(clientAddress(request), 5)) {
+  if (!allowedByRateLimit(clientAddress(request), 5, "contact")) {
     sendJson(response, 429, {
       ok: false,
       message: "Too many messages were submitted. Please wait 15 minutes and try again."
@@ -241,11 +262,12 @@ async function geocodeAddress(address) {
   url.searchParams.set("boundary.country", "US");
   url.searchParams.set("focus.point.lon", "-110.9747");
   url.searchParams.set("focus.point.lat", "32.2226");
+  addServiceBoundary(url);
   const data = await orsRequest(url);
   const feature = data.features?.[0];
   const coordinates = feature?.geometry?.coordinates;
 
-  if (!Array.isArray(coordinates) || coordinates.length !== 2) {
+  if (!Array.isArray(coordinates) || coordinates.length !== 2 || !insideServiceBoundary(coordinates)) {
     throw new Error("ADDRESS_NOT_FOUND");
   }
 
@@ -289,7 +311,7 @@ function deliveryAddresses(body) {
 }
 
 async function handleAutocomplete(request, response) {
-  if (!allowedByRateLimit(clientAddress(request), 80)) {
+  if (!allowedByRateLimit(clientAddress(request), 120, "autocomplete")) {
     sendJson(response, 429, { ok: false, message: "Please wait a moment before searching again." });
     return;
   }
@@ -311,19 +333,54 @@ async function handleAutocomplete(request, response) {
     url.searchParams.set("boundary.country", "US");
     url.searchParams.set("focus.point.lon", "-110.9747");
     url.searchParams.set("focus.point.lat", "32.2226");
+    addServiceBoundary(url);
     const data = await orsRequest(url);
     const suggestions = (data.features || []).map((feature) => ({
       label: cleanText(feature.properties?.label, 300),
       coordinates: feature.geometry?.coordinates
-    })).filter((entry) => entry.label && Array.isArray(entry.coordinates));
+    })).filter((entry) => entry.label && insideServiceBoundary(entry.coordinates));
     sendJson(response, 200, { ok: true, suggestions });
   } catch {
     sendJson(response, 502, { ok: false, message: "Address suggestions are temporarily unavailable." });
   }
 }
 
+async function handleReverseGeocode(request, response) {
+  if (!allowedByRateLimit(clientAddress(request), 20, "reverse-geocode")) {
+    sendJson(response, 429, { ok: false, message: "Please wait before requesting your location again." });
+    return;
+  }
+  if (!orsKey) {
+    sendJson(response, 503, { ok: false, message: "Location lookup is not configured yet." });
+    return;
+  }
+
+  const requestUrl = new URL(request.url, "http://localhost");
+  const lat = Number(requestUrl.searchParams.get("lat"));
+  const lon = Number(requestUrl.searchParams.get("lon"));
+  if (!insideServiceBoundary([lon, lat])) {
+    sendJson(response, 400, { ok: false, message: "Your current location is outside the Tucson service area." });
+    return;
+  }
+
+  try {
+    const url = new URL("https://api.openrouteservice.org/geocode/reverse");
+    url.searchParams.set("point.lon", String(lon));
+    url.searchParams.set("point.lat", String(lat));
+    url.searchParams.set("size", "1");
+    const data = await orsRequest(url);
+    const feature = data.features?.[0];
+    const coordinates = feature?.geometry?.coordinates;
+    const address = cleanText(feature?.properties?.label, 300);
+    if (!address || !insideServiceBoundary(coordinates)) throw new Error("LOCATION_NOT_FOUND");
+    sendJson(response, 200, { ok: true, address });
+  } catch {
+    sendJson(response, 502, { ok: false, message: "Your current address could not be identified." });
+  }
+}
+
 async function handleDistance(request, response) {
-  if (!allowedByRateLimit(clientAddress(request), 30)) {
+  if (!allowedByRateLimit(clientAddress(request), 60, "distance")) {
     sendJson(response, 429, { ok: false, message: "Please wait before calculating another route." });
     return;
   }
@@ -444,7 +501,7 @@ async function createStripeCheckout(request, response) {
     });
     return;
   }
-  if (!allowedByRateLimit(clientAddress(request), 20)) {
+  if (!allowedByRateLimit(clientAddress(request), 20, "checkout")) {
     sendJson(response, 429, { ok: false, message: "Please wait before starting another checkout." });
     return;
   }
@@ -656,6 +713,10 @@ const server = http.createServer(async (request, response) => {
   }
   if (request.method === "GET" && pathname === "/api/address-autocomplete") {
     await handleAutocomplete(request, response);
+    return;
+  }
+  if (request.method === "GET" && pathname === "/api/reverse-geocode") {
+    await handleReverseGeocode(request, response);
     return;
   }
   if (request.method === "POST" && pathname === "/api/delivery-distance") {

@@ -27,6 +27,7 @@ const addressTimers=new WeakMap();
 const addressRequests=new WeakMap();
 const addressSuggestionCache=new Map();
 let distanceTimer=0;
+let distanceRequest=null;
 function installAddressFormatHint(){
   const fieldset=document.querySelector('#pickup')?.closest('fieldset');
   if(!fieldset||fieldset.querySelector('[data-address-hint]'))return;
@@ -122,14 +123,23 @@ function installAddressAutocomplete(){
     inputElement.insertAdjacentElement('afterend',results);
     inputElement.addEventListener('input',()=>{
       state.distance=null;
+      distanceRequest?.abort();
       inputElement.dataset.verified='';
       delete inputElement.dataset.lon;
       delete inputElement.dataset.lat;
       addressRequests.get(inputElement)?.abort();
       results.classList.add('hidden');
+      const distanceCard=document.querySelector('#distance-zone-card');
+      if(distanceCard){distanceCard.classList.add('hidden');distanceCard.innerHTML=''}
+      const status=document.querySelector('#distance-status');
+      if(status)status.textContent='Checking the addresses and calculating driving mileage…';
+      const total=document.querySelector('#price-total');
+      const breakdown=document.querySelector('#price-breakdown');
+      if(total)total.textContent='Calculating…';
+      if(breakdown)breakdown.textContent='The price will update after the route is verified.';
       clearTimeout(addressTimers.get(inputElement));
-      addressTimers.set(inputElement,setTimeout(()=>loadAddressSuggestions(inputElement,results),300));
-      scheduleDistance();
+      addressTimers.set(inputElement,setTimeout(()=>loadAddressSuggestions(inputElement,results),250));
+      scheduleDistance(900);
     });
     inputElement.addEventListener('keydown',event=>{
       if(event.key!=='Enter'||results.classList.contains('hidden'))return;
@@ -219,8 +229,11 @@ async function calculateDistance(){
   const selectedCoordinates=coordinateElements.every(element=>Number.isFinite(Number(element?.dataset.lon))&&Number.isFinite(Number(element?.dataset.lat)));
   const coordinates=selectedCoordinates?coordinateElements.map(element=>[Number(element.dataset.lon),Number(element.dataset.lat)]):undefined;
   if(status)status.innerHTML='<span class="font-semibold text-slate-800">Calculating driving mileage…</span>';
+  distanceRequest?.abort();
+  const controller=new AbortController();
+  distanceRequest=controller;
   try{
-    const response=await fetch('/api/delivery-distance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceKey:state.serviceKey,fields:{pickup,dropoff},stops,coordinates})});
+    const response=await fetch('/api/delivery-distance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceKey:state.serviceKey,fields:{pickup,dropoff},stops,coordinates}),signal:controller.signal});
     const responseText=await response.text();
     let data;
     try{
@@ -255,7 +268,10 @@ async function calculateDistance(){
     }
     if(status)status.innerHTML=`<strong class="text-brand">${data.miles} verified driving miles</strong><span class="mt-1 block">The ${distanceZones[data.zoneIndex]} price zone was selected automatically.</span>`;
   }catch(error){
+    if(error.name==='AbortError')return;
     state.distance=null;
+    const distanceCard=document.querySelector('#distance-zone-card');
+    if(distanceCard){distanceCard.classList.add('hidden');distanceCard.innerHTML=''}
     if(status)status.innerHTML=`<strong class="text-red-700">Mileage not verified.</strong><span class="mt-1 block">${escapeHtml(error.message)}</span>`;
   }
 }

@@ -374,7 +374,7 @@ function deliveryCoordinates(body) {
 }
 
 async function handleAutocomplete(request, response) {
-  if (!allowedByRateLimit(clientAddress(request), 120, "autocomplete")) {
+  if (!allowedByRateLimit(clientAddress(request), 300, "autocomplete")) {
     sendJson(response, 429, { ok: false, message: "Please wait a moment before searching again." });
     return;
   }
@@ -459,7 +459,7 @@ async function handleReverseGeocode(request, response) {
 }
 
 async function handleDistance(request, response) {
-  if (!allowedByRateLimit(clientAddress(request), 60, "distance")) {
+  if (!allowedByRateLimit(clientAddress(request), 120, "distance")) {
     sendJson(response, 429, { ok: false, message: "Please wait before calculating another route." });
     return;
   }

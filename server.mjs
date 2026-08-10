@@ -18,6 +18,11 @@ const geocodeCache = new Map();
 const autocompleteCache = new Map();
 const processedStripeEvents = new Set();
 const maxBodySize = 30_000;
+const rushDistancePrices = [35, 50, 65, 80, 105, 135, 165, 195, 240, 315];
+const plannedDistancePrices = [25, 35, 45, 55, 70, 115, 145, 175, 210, 275];
+const sameDayDistancePrices = [30, 45, 60, 75, 95, 125, 155, 185, 225, 295];
+const afterHoursFee = 75;
+const afterHoursMinimum = 125;
 const serviceBounds = {
   minLon: -112.8,
   minLat: 30.7,
@@ -134,6 +139,64 @@ function isArizonaAddress(feature) {
 function tucsonSearchText(query) {
   const hasLocation = /\b(?:AZ|ARIZONA|TUCSON|MARANA|ORO VALLEY|SAHUARITA|GREEN VALLEY|VAIL|BENSON|NOGALES|SIERRA VISTA|CASA GRANDE)\b/i.test(query);
   return hasLocation ? query : `${query}, Tucson, AZ`;
+}
+
+function addressHouseNumber(value) {
+  return cleanText(value, 300).match(/^\s*(\d+[a-z]?)(?:\s|,)/i)?.[1]?.toUpperCase() || "";
+}
+
+function addressZip(value) {
+  return cleanText(value, 300).match(/\b(\d{5})(?:-\d{4})?(?:\s*,?\s*(?:USA|UNITED STATES(?: OF AMERICA)?))?\s*$/i)?.[1] || "";
+}
+
+function completeArizonaAddress(value) {
+  const address = cleanText(value, 300);
+  return Boolean(
+    addressHouseNumber(address)
+    && /\b(?:AZ|ARIZONA)\b/i.test(address)
+    && addressZip(address)
+  );
+}
+
+function exactHouseNumber(feature, expected) {
+  if (!expected) return false;
+  const properties = feature?.properties || {};
+  const candidate = cleanText(properties.housenumber, 30).toUpperCase()
+    || addressHouseNumber(properties.label);
+  return candidate === expected;
+}
+
+function exactZipOrUnspecified(feature, expected) {
+  if (!expected) return true;
+  const properties = feature?.properties || {};
+  const candidate = cleanText(properties.postalcode, 20).match(/\d{5}/)?.[0]
+    || cleanText(properties.label, 300).match(/\b\d{5}\b/)?.[0]
+    || "";
+  return !candidate || candidate === expected;
+}
+
+async function censusGeocodeAddress(address) {
+  const url = new URL("https://geocoding.geo.census.gov/geocoder/locations/onelineaddress");
+  url.searchParams.set("address", address);
+  url.searchParams.set("benchmark", "Public_AR_Current");
+  url.searchParams.set("format", "json");
+  const result = await fetch(url, {
+    headers: { "User-Agent": "TucsonOfficeCourier/1.0" }
+  });
+  if (!result.ok) throw new Error(`CENSUS_${result.status}`);
+  const data = await result.json();
+  const expectedHouseNumber = addressHouseNumber(address);
+  const matches = Array.isArray(data.result?.addressMatches) ? data.result.addressMatches : [];
+  const match = matches.find((entry) => {
+    const coordinates = [Number(entry.coordinates?.x), Number(entry.coordinates?.y)];
+    const matchedHouseNumber = addressHouseNumber(entry.matchedAddress);
+    return matchedHouseNumber === expectedHouseNumber && insideServiceBoundary(coordinates);
+  });
+  if (!match) return null;
+  return {
+    label: cleanText(match.matchedAddress, 300),
+    coordinates: [Number(match.coordinates.x), Number(match.coordinates.y)]
+  };
 }
 
 function addressPriority(feature) {
@@ -284,44 +347,50 @@ async function orsRequest(url, options = {}) {
 
 async function geocodeAddress(address) {
   const normalized = cleanText(address, 300);
-  if (normalized.length < 5) throw new Error("ADDRESS_INVALID");
+  if (!completeArizonaAddress(normalized)) throw new Error("ADDRESS_FORMAT");
 
   const cacheKey = normalized.toLowerCase();
   const cached = geocodeCache.get(cacheKey);
   if (cached && Date.now() - cached.savedAt < 15 * 60 * 1000) return cached.result;
 
-  const url = new URL("https://api.openrouteservice.org/geocode/search");
-  url.searchParams.set("text", normalized);
-  url.searchParams.set("size", "1");
-  url.searchParams.set("boundary.country", "US");
-  url.searchParams.set("focus.point.lon", "-110.9747");
-  url.searchParams.set("focus.point.lat", "32.2226");
-  addServiceBoundary(url);
-  const data = await orsRequest(url);
-  const feature = data.features?.[0];
-  const coordinates = feature?.geometry?.coordinates;
-
-  if (!Array.isArray(coordinates) || coordinates.length !== 2 || !insideServiceBoundary(coordinates)) {
-    throw new Error("ADDRESS_NOT_FOUND");
+  let result = null;
+  try {
+    result = await censusGeocodeAddress(normalized);
+  } catch (error) {
+    console.warn("Census address verification unavailable", error.message);
   }
 
-  const result = {
-    label: cleanText(feature.properties?.label || normalized, 300),
-    coordinates: coordinates.map(Number)
-  };
+  if (!result) {
+    const expectedHouseNumber = addressHouseNumber(normalized);
+    const expectedZip = addressZip(normalized);
+    const url = new URL("https://api.openrouteservice.org/geocode/search");
+    url.searchParams.set("text", normalized);
+    url.searchParams.set("size", "10");
+    url.searchParams.set("boundary.country", "US");
+    url.searchParams.set("focus.point.lon", "-110.9747");
+    url.searchParams.set("focus.point.lat", "32.2226");
+    addServiceBoundary(url);
+    const data = await orsRequest(url);
+    const feature = (data.features || []).find((candidate) => isArizonaAddress(candidate)
+      && insideServiceBoundary(candidate.geometry?.coordinates)
+      && exactHouseNumber(candidate, expectedHouseNumber)
+      && exactZipOrUnspecified(candidate, expectedZip));
+    const coordinates = feature?.geometry?.coordinates;
+    if (Array.isArray(coordinates) && coordinates.length === 2) {
+      result = {
+        label: cleanText(feature.properties?.label || normalized, 300),
+        coordinates: coordinates.map(Number)
+      };
+    }
+  }
+
+  if (!result) throw new Error("ADDRESS_NOT_FOUND");
   geocodeCache.set(cacheKey, { savedAt: Date.now(), result });
   return result;
 }
 
-async function routeAddresses(addresses, suppliedCoordinates = null) {
-  const supplied = Array.isArray(suppliedCoordinates)
-    && suppliedCoordinates.length === addresses.length
-    && suppliedCoordinates.every(insideServiceBoundary)
-    ? suppliedCoordinates.map((coordinates) => coordinates.map(Number))
-    : null;
-  const geocoded = supplied
-    ? addresses.map((label, index) => ({ label, coordinates: supplied[index] }))
-    : await Promise.all(addresses.map(geocodeAddress));
+async function routeAddresses(addresses) {
+  const geocoded = await Promise.all(addresses.map(geocodeAddress));
   const data = await orsRequest(
     "https://api.openrouteservice.org/v2/directions/driving-car",
     {
@@ -362,17 +431,6 @@ function deliveryAddresses(body) {
   return [pickup, cleanText(fields.dropoff, 300)];
 }
 
-function deliveryCoordinates(body) {
-  const addresses = deliveryAddresses(body);
-  const source = Array.isArray(body?.coordinates)
-    ? body.coordinates
-    : Array.isArray(body?.distance?.coordinates)
-      ? body.distance.coordinates
-      : [];
-  if (source.length !== addresses.length || !source.every(insideServiceBoundary)) return null;
-  return source.map((coordinates) => coordinates.map(Number));
-}
-
 async function handleAutocomplete(request, response) {
   if (!allowedByRateLimit(clientAddress(request), 300, "autocomplete")) {
     sendJson(response, 429, { ok: false, message: "Please wait a moment before searching again." });
@@ -397,6 +455,15 @@ async function handleAutocomplete(request, response) {
     return;
   }
 
+  let verifiedSuggestion = null;
+  if (completeArizonaAddress(query)) {
+    try {
+      verifiedSuggestion = await geocodeAddress(query);
+    } catch {
+      verifiedSuggestion = null;
+    }
+  }
+
   try {
     const url = new URL("https://api.openrouteservice.org/geocode/autocomplete");
     url.searchParams.set("text", searchText);
@@ -406,20 +473,33 @@ async function handleAutocomplete(request, response) {
     url.searchParams.set("focus.point.lat", "32.2226");
     addServiceBoundary(url);
     const data = await orsRequest(url);
-    const suggestions = (data.features || [])
+    const expectedHouseNumber = addressHouseNumber(query);
+    const expectedZip = addressZip(query);
+    const openRouteSuggestions = (data.features || [])
       .filter((feature) => isArizonaAddress(feature)
         && insideServiceBoundary(feature.geometry?.coordinates)
-        && milesFromTucson(feature.geometry?.coordinates) <= 110)
+        && milesFromTucson(feature.geometry?.coordinates) <= 110
+        && (!expectedHouseNumber || exactHouseNumber(feature, expectedHouseNumber))
+        && (!expectedZip || exactZipOrUnspecified(feature, expectedZip)))
       .sort((left, right) => addressPriority(left) - addressPriority(right)
         || Number(right.properties?.confidence || 0) - Number(left.properties?.confidence || 0))
-      .slice(0, 6)
       .map((feature) => ({
         label: cleanText(feature.properties?.label, 300),
         coordinates: feature.geometry?.coordinates.map(Number)
       }));
+    const suggestions = [
+      ...(verifiedSuggestion ? [verifiedSuggestion] : []),
+      ...openRouteSuggestions
+    ].filter((suggestion, index, list) => suggestion.label
+      && list.findIndex((candidate) => candidate.label.toLowerCase() === suggestion.label.toLowerCase()) === index)
+      .slice(0, 6);
     autocompleteCache.set(cacheKey, { savedAt: Date.now(), suggestions });
     sendJson(response, 200, { ok: true, suggestions });
   } catch {
+    if (verifiedSuggestion) {
+      sendJson(response, 200, { ok: true, suggestions: [verifiedSuggestion] });
+      return;
+    }
     sendJson(response, 502, { ok: false, message: "Address suggestions are temporarily unavailable." });
   }
 }
@@ -475,7 +555,7 @@ async function handleDistance(request, response) {
       sendJson(response, 400, { ok: false, message: "Enter a complete pickup and drop-off address." });
       return;
     }
-    const route = await routeAddresses(addresses, deliveryCoordinates(body));
+    const route = await routeAddresses(addresses);
     const serviceKey = cleanText(body?.serviceKey, 30);
     const customQuote = route.zoneIndex === 10 || (serviceKey === "routes" && route.zoneIndex > 2);
     sendJson(response, 200, {
@@ -484,13 +564,17 @@ async function handleDistance(request, response) {
       zoneIndex: route.zoneIndex,
       customQuote,
       verifiedAddresses: route.labels,
+      labels: route.labels,
       coordinates: route.coordinates
     });
   } catch (error) {
     const status = error.message === "REQUEST_TOO_LARGE" ? 413 : 422;
+    const addressFormat = error.message === "ADDRESS_FORMAT";
     sendJson(response, status, {
       ok: false,
-      message: "We could not verify that route. Choose an address suggestion or check the street addresses."
+      message: addressFormat
+        ? "Enter each complete address like: 2801 East Lee Street, Tucson, Arizona 85716."
+        : "We could not match one of those street addresses. Check the house number, street type, city, state, and ZIP code."
     });
   }
 }
@@ -505,6 +589,17 @@ function itemFee(item) {
 function integerIndex(value, maximum) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed >= 0 && parsed <= maximum ? parsed : 0;
+}
+
+function scheduledAfterHours(fields) {
+  const date = cleanText(fields?.date, 20);
+  const time = cleanText(fields?.time, 20);
+  const dateMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const timeMatch = time.match(/^(\d{2}):(\d{2})/);
+  if (!dateMatch || !timeMatch) return false;
+  const calendarDay = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const minutes = Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
+  return calendarDay === 0 || calendarDay === 6 || minutes < 8 * 60 || minutes >= 17 * 60;
 }
 
 function validateCheckoutFields(body) {
@@ -533,14 +628,17 @@ function checkoutAmount(body, route) {
   const zone = route.zoneIndex;
   if (zone > 9) throw new Error("CUSTOM_DISTANCE");
   const handling = itemFee(cleanText(fields.type, 80));
+  const timeBasedAfterHours = scheduledAfterHours(fields);
   let total = 0;
   const parts = [];
 
   if (serviceKey === "rush") {
-    const base = [35, 50, 65, 80, 105, 135, 165, 195, 240, 315][zone];
+    const base = rushDistancePrices[zone];
     const rushFee = integerIndex(pricing.timingIndex, 1) === 0 ? 20 : 0;
-    total = base + rushFee + handling;
+    total = base + rushFee + handling + (timeBasedAfterHours ? afterHoursFee : 0);
+    if (timeBasedAfterHours) total = Math.max(afterHoursMinimum, total);
     parts.push(`${route.miles} driving miles`, `distance $${base}`, rushFee ? "rush $20" : "same day included");
+    if (timeBasedAfterHours) parts.push(`after hours +$${afterHoursFee}, $${afterHoursMinimum} minimum`);
   } else if (serviceKey === "routes") {
     if (zone > 2) throw new Error("CUSTOM_DISTANCE");
     const frequency = integerIndex(pricing.frequencyIndex, 2);
@@ -548,20 +646,20 @@ function checkoutAmount(body, route) {
     const distance = [0, 15, 30][zone];
     const stops = [0, 10, 20, 30][integerIndex(pricing.routeStopsIndex, 3)];
     const proof = integerIndex(pricing.proofIndex, 1) ? 7 : 0;
-    const after = integerIndex(pricing.hoursIndex, 1) ? 75 : 0;
+    const routeWindowAfterHours = cleanText(fields.window, 80) === "After hours";
+    const afterHours = timeBasedAfterHours || routeWindowAfterHours || integerIndex(pricing.hoursIndex, 1) === 1;
+    const after = afterHours ? afterHoursFee : 0;
     total = base + distance + stops + handling + proof + after;
-    if (after) total = Math.max(125, total);
+    if (after) total = Math.max(afterHoursMinimum, total);
     parts.push(`${route.miles} route miles`, `base route $${base}`, `route additions $${distance + stops + proof + after}`);
   } else {
     const timing = integerIndex(pricing.timingIndex, 2);
-    const planned = [25, 35, 45, 55, 70, 115, 145, 175, 210, 275];
-    const sameDay = [30, 45, 60, 75, 95, 125, 155, 185, 225, 295];
-    const afterHours = timing === 2;
-    const base = timing === 1 ? planned[zone] : sameDay[zone];
-    total = base + handling + (afterHours ? 75 : 0);
-    if (afterHours) total = Math.max(125, total);
+    const afterHours = timeBasedAfterHours || timing === 2;
+    const base = timing === 1 ? plannedDistancePrices[zone] : sameDayDistancePrices[zone];
+    total = base + handling + (afterHours ? afterHoursFee : 0);
+    if (afterHours) total = Math.max(afterHoursMinimum, total);
     if (serviceKey === "multi") total += Math.max(0, body.stops.length - 2) * 10;
-    parts.push(`${route.miles} driving miles`, `route $${base}`, afterHours ? "after hours" : timing === 1 ? "planned delivery" : "same day");
+    parts.push(`${route.miles} driving miles`, `route $${base}`, afterHours ? `after hours +$${afterHoursFee}, $${afterHoursMinimum} minimum` : timing === 1 ? "planned delivery" : "same day");
   }
 
   if (handling) parts.push(`item handling $${handling}`);
@@ -592,9 +690,7 @@ async function createStripeCheckout(request, response) {
     const body = await readJsonBody(request);
     const { fields, serviceKey } = validateCheckoutFields(body);
     const addresses = deliveryAddresses(body);
-    const selectedRoute = await routeAddresses(addresses, deliveryCoordinates(body));
-    const lookupRoute = await routeAddresses(addresses);
-    const route = selectedRoute.miles >= lookupRoute.miles ? selectedRoute : lookupRoute;
+    const route = await routeAddresses(addresses);
     const price = checkoutAmount(body, route);
     const requestId = `TOC-${randomUUID().slice(0, 8).toUpperCase()}`;
     const baseUrl = requestBaseUrl(request);

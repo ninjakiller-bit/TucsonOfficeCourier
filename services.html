@@ -13,7 +13,7 @@ const plannedDistancePrices=[25,35,45,55,70,115,145,175,210,275];
 const sameDayDistancePrices=[30,45,60,75,95,125,155,185,225,295];
 const distanceDescriptions=['Central Tucson and nearby stops','Charged at the 10-mile flat rate','Extended Tucson delivery','Outer Tucson and Oro Valley area','Marana and longer local routes','Regional delivery up to 40 miles','Regional delivery up to 50 miles','Regional delivery up to 60 miles','Long-distance Arizona delivery','Long-distance delivery up to 100 miles'];
 cards.innerHTML=Object.entries(services).map(([k,s])=>`<article class="card flex min-h-[300px] flex-col rounded-xl border ${s.custom?'border-slate-800 bg-orange-50':'border-slate-300 bg-white'} p-7"><div><div class="text-4xl" aria-hidden="true">${s.i}</div><h2 class="mt-5 text-2xl font-extrabold leading-tight tracking-[-.025em]">${s.t}</h2><p class="mt-4 text-base leading-7 text-slate-700">${s.d}</p></div><button type="button" data-service="${k}" class="open mt-auto w-fit rounded-md bg-brand px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-200">${s.b} →</button></article>`).join('');
-const input=(n,l,t='text',req=true,x='')=>{const addressExample=n==='pickup'||n==='dropoff'||n.startsWith('stop')?'placeholder="2801 E Lee St, Tucson, AZ 85716"':'';return `<div><label class="mb-1.5 block text-sm font-semibold" for="${n}">${l}${req?' <span class="text-brand">*</span>':''}</label><input id="${n}" name="${n}" type="${t}" ${req?'required':''} ${addressExample} ${x} class="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-brand focus:ring-4 focus:ring-orange-100"></div>`};
+const input=(n,l,t='text',req=true,x='')=>{const addressExample=n==='pickup'||n==='dropoff'||n.startsWith('stop')?'placeholder="2801 East Lee Street, Tucson, Arizona 85716"':'';return `<div><label class="mb-1.5 block text-sm font-semibold" for="${n}">${l}${req?' <span class="text-brand">*</span>':''}</label><input id="${n}" name="${n}" type="${t}" ${req?'required':''} ${addressExample} ${x} class="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-brand focus:ring-4 focus:ring-orange-100"></div>`};
 const select=(n,l,opts)=>`<div><label class="mb-1.5 block text-sm font-semibold" for="${n}">${l} <span class="text-brand">*</span></label><select id="${n}" name="${n}" required class="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none focus:border-brand focus:ring-4 focus:ring-orange-100">${opts.map(o=>`<option value="${o}">${o}</option>`).join('')}</select></div>`;
 function stopUI(){let box=document.querySelector('#stops');box.innerHTML=state.stops.map((v,i)=>`<div class="flex gap-3"><div class="min-w-0 flex-1">${input('stop'+i,'Stop '+(i+1)+' address')} </div><button type="button" data-r="${i}" ${state.stops.length===2?'disabled':''} class="mt-7 rounded-lg border border-slate-300 px-3 text-sm font-bold disabled:opacity-40">Remove</button></div>`).join('');box.querySelectorAll('input').forEach((e,i)=>{e.value=state.stops[i];e.oninput=()=>{state.stops[i]=e.value;scheduleDistance()}});box.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{state.stops.splice(+b.dataset.r,1);stopUI();updateEstimate();scheduleDistance()});installAddressAutocomplete();updateEstimate()}
 
@@ -21,7 +21,7 @@ function requestProgress(step){
   const steps=['Details','Review','Checkout'];
   return `<div class="mb-7 flex items-center" aria-label="Delivery request progress">${steps.map((label,index)=>{const number=index+1;const active=number===step;const complete=number<step;return `${index?'<span class="mx-2 h-px flex-1 bg-slate-300"></span>':''}<span class="flex items-center gap-2 text-xs font-semibold ${active||complete?'text-brand':'text-slate-400'}"><b class="flex h-6 w-6 items-center justify-center rounded-full border ${active||complete?'border-brand bg-orange-50':'border-slate-300'}">${complete?'✓':number}</b><span class="hidden sm:inline">${label}</span></span>`}).join('')}</div>`;
 }
-function form(){let s=state.active;state.distance=null;title.textContent=s.t;let addresses=s.multi?`<fieldset><legend class="mb-4 text-lg font-extrabold">Route addresses</legend>${input('pickup','Pickup address')}<div class="mt-5 flex items-center justify-between"><h3 class="font-semibold">Delivery stops</h3><button id="add" type="button" class="rounded-lg border border-brand px-3 py-2 text-sm font-bold text-brand">Add another stop</button></div><div id="stops" class="mt-3 space-y-3"></div></fieldset>`:`<fieldset><legend class="mb-4 text-lg font-extrabold">Where is this delivery going?</legend><div class="grid gap-4 sm:grid-cols-2">${input('pickup','Pickup address')}${input('dropoff','Drop-off address')}</div></fieldset>`;let details=s.custom?`<div>${input('item','What service do you need?')}</div>`:`<fieldset id="package-details" class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Package details</legend><div class="grid gap-4 sm:grid-cols-2">${select('type','What are we moving?',['Documents or records','Envelope or mail pouch','Documents with signature','Office supplies','Package'])}${input('weight','Estimated weight in pounds','number',true,'min="0.1" max="10" step="0.1"')}</div><p class="mt-3 text-sm text-slate-500">Packages entered through the quick-order form are limited to 10 lb.</p></fieldset>`;let route=s.route?`<fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Route schedule</legend><div class="grid gap-4 sm:grid-cols-2">${select('frequency','How often is this route needed?',['Daily, Monday through Friday — $45 per route','Weekly — $55 per route','Custom schedule — from $60'])}${select('window','Preferred pickup window',['8 AM–10 AM','10 AM–12 PM','12 PM–2 PM','2 PM–5 PM','After hours'])}</div></fieldset>`:'';content.innerHTML=`${requestProgress(1)}<form id="f" class="space-y-6" novalidate>${addresses}<div id="distance-status" class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600" role="status" aria-live="polite">Choose verified pickup and drop-off addresses to calculate driving mileage automatically.</div><fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Preferred date and pickup time</legend><div class="grid gap-4 sm:grid-cols-2">${input('date','Preferred date','date','true','min="'+new Date().toISOString().split('T')[0]+'"')}${input('time','Preferred pickup time','time')}</div></fieldset>${route}${details}<div class="border-t border-slate-200 pt-6"><label class="mb-1.5 block text-sm font-semibold" for="notes">Special instructions</label><textarea id="notes" name="notes" rows="4" maxlength="500" class="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-brand focus:ring-4 focus:ring-orange-100"></textarea><p class="mt-2 text-xs text-slate-500">Examples: front desk delivery, call on arrival, access instructions, or fragile handling.</p></div><fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Contact details</legend><div class="grid gap-4 sm:grid-cols-2">${input('name','Contact name')}${input('phone','Phone number','tel',true,'inputmode="tel" autocomplete="tel"') }</div><div class="mt-4">${input('email','Email address','email',true,'autocomplete="email"')}</div></fieldset><button type="submit" class="w-full rounded-lg bg-brand px-5 py-3.5 font-bold text-white shadow hover:bg-orange-500">Continue to review →</button></form>`;installPickupLocationButton();installAddressFormatHint();installDistanceCard();if(s.multi){stopUI();document.querySelector('#add').onclick=()=>{state.stops.push('');stopUI()}}installPricing(s);installAddressAutocomplete();document.querySelector('#f').onsubmit=submit}
+function form(){let s=state.active;state.distance=null;title.textContent=s.t;let addresses=s.multi?`<fieldset><legend class="mb-4 text-lg font-extrabold">Route addresses</legend>${input('pickup','Pickup address')}<div class="mt-5 flex items-center justify-between"><h3 class="font-semibold">Delivery stops</h3><button id="add" type="button" class="rounded-lg border border-brand px-3 py-2 text-sm font-bold text-brand">Add another stop</button></div><div id="stops" class="mt-3 space-y-3"></div></fieldset>`:`<fieldset><legend class="mb-4 text-lg font-extrabold">Where is this delivery going?</legend><div class="grid gap-4 sm:grid-cols-2">${input('pickup','Pickup address')}${input('dropoff','Drop-off address')}</div></fieldset>`;let details=s.custom?`<div>${input('item','What service do you need?')}</div>`:`<fieldset id="package-details" class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Package details</legend><div class="grid gap-4 sm:grid-cols-2">${select('type','What are we moving?',['Documents or records','Envelope or mail pouch','Documents with signature','Office supplies','Package'])}${input('weight','Estimated weight in pounds','number',true,'min="0.1" max="10" step="0.1"')}</div><p class="mt-3 text-sm text-slate-500">Packages entered through the quick-order form are limited to 10 lb.</p></fieldset>`;let route=s.route?`<fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Route schedule</legend><div class="grid gap-4 sm:grid-cols-2">${select('frequency','How often is this route needed?',['Daily, Monday through Friday — $45 per route','Weekly — $55 per route','Custom schedule — from $60'])}${select('window','Preferred pickup window',['8 AM–10 AM','10 AM–12 PM','12 PM–2 PM','2 PM–5 PM','After hours'])}</div></fieldset>`:'';content.innerHTML=`${requestProgress(1)}<form id="f" class="space-y-6" novalidate>${addresses}<div id="distance-status" class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600" role="status" aria-live="polite">Choose verified pickup and drop-off addresses to calculate driving mileage automatically.</div><fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Preferred date and pickup time</legend><div class="grid gap-4 sm:grid-cols-2">${input('date','Preferred date','date','true','min="'+new Date().toISOString().split('T')[0]+'"')}${input('time','Preferred pickup time','time')}</div></fieldset>${route}${details}<div class="border-t border-slate-200 pt-6"><label class="mb-1.5 block text-sm font-semibold" for="notes">Special instructions</label><textarea id="notes" name="notes" rows="4" maxlength="500" class="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-brand focus:ring-4 focus:ring-orange-100"></textarea><p class="mt-2 text-xs text-slate-500">Examples: front desk delivery, call on arrival, access instructions, or fragile handling.</p></div><fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Contact details</legend><div class="grid gap-4 sm:grid-cols-2">${input('name','Contact name')}${input('phone','Phone number','tel',true,'inputmode="tel" autocomplete="tel"') }</div><div class="mt-4">${input('email','Email address','email',true,'autocomplete="email"')}</div></fieldset><button type="submit" class="w-full rounded-lg bg-brand px-5 py-3.5 font-bold text-white shadow hover:bg-orange-500">Continue to review →</button></form>`;installPickupLocationButton();installAddressFormatHint();installDistanceCard();installAfterHoursNotice();if(s.multi){stopUI();document.querySelector('#add').onclick=()=>{state.stops.push('');stopUI()}}installPricing(s);installAddressAutocomplete();document.querySelector('#f').onsubmit=submit}
 
 const addressTimers=new WeakMap();
 const addressRequests=new WeakMap();
@@ -34,7 +34,7 @@ function installAddressFormatHint(){
   const hint=document.createElement('p');
   hint.dataset.addressHint='true';
   hint.className='mt-3 text-sm leading-5 text-slate-600';
-  hint.innerHTML='<strong>Address format:</strong> street number, street name, city, state, ZIP.<br><span class="text-slate-500">Example: 2801 E Lee St, Tucson, AZ 85716. Select a suggestion or finish typing the complete address.</span>';
+  hint.innerHTML='<strong>Use the complete address:</strong> street number, direction, street name, street type, city, state, and ZIP.<br><span class="text-slate-500">Example: 2801 East Lee Street, Tucson, Arizona 85716. A verified suggestion will correct abbreviations and ZIP codes.</span>';
   fieldset.append(hint);
 }
 function installDistanceCard(){
@@ -46,6 +46,16 @@ function installDistanceCard(){
   card.setAttribute('aria-live','polite');
   status.insertAdjacentElement('afterend',card);
 }
+function installAfterHoursNotice(){
+  const time=document.querySelector('#time');
+  const fieldset=time?.closest('fieldset');
+  if(!fieldset||fieldset.querySelector('[data-after-hours-notice]'))return;
+  const notice=document.createElement('p');
+  notice.dataset.afterHoursNotice='true';
+  notice.className='mt-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm leading-5 text-slate-700';
+  notice.innerHTML='<strong>After-hours pricing is automatic.</strong> Pickups before 8:00 AM, at or after 5:00 PM, or on Saturday and Sunday add $75 and have a $125 minimum total.';
+  fieldset.append(notice);
+}
 function renderDistanceCard(data){
   const card=document.querySelector('#distance-zone-card');
   if(!card||!data)return;
@@ -55,9 +65,9 @@ function renderDistanceCard(data){
     return;
   }
   const zone=Math.min(data.zoneIndex,distanceZones.length-1);
-  const timing=document.querySelector('#price-timing')?.selectedIndex??0;
-  const amount=state.active.rush?rushDistancePrices[zone]:(timing===1?plannedDistancePrices[zone]:sameDayDistancePrices[zone]);
-  card.innerHTML=`<div class="flex items-start justify-between gap-5"><div><p class="text-xs font-extrabold tracking-[.14em] text-brand">AUTOMATIC DISTANCE ZONE</p><h3 class="mt-2 text-3xl font-extrabold">${distanceZones[zone]}</h3><p class="mt-1 text-sm text-slate-700">${distanceDescriptions[zone]}</p><p class="mt-2 text-sm font-semibold text-slate-900">${escapeHtml(data.miles)} estimated driving miles</p></div><strong class="text-3xl text-brand">$${amount}</strong></div>`;
+  const estimate=estimatePrice();
+  const amount=estimate&&!estimate.custom?`$${estimate.total.toFixed(2)}`:'Custom quote';
+  card.innerHTML=`<div class="flex items-start justify-between gap-5"><div><p class="text-xs font-extrabold tracking-[.14em] text-brand">AUTOMATIC DISTANCE ZONE</p><h3 class="mt-2 text-3xl font-extrabold">${distanceZones[zone]}</h3><p class="mt-1 text-sm text-slate-700">${distanceDescriptions[zone]}</p><p class="mt-2 text-sm font-semibold text-slate-900">${escapeHtml(data.miles)} verified driving miles</p></div><div class="text-right"><span class="block text-xs font-bold uppercase tracking-wide text-slate-500">Current estimate</span><strong class="mt-1 block text-3xl text-brand">${amount}</strong></div></div>`;
 }
 function installPickupLocationButton(){
   const pickup=document.querySelector('#pickup');
@@ -107,6 +117,12 @@ function useCurrentPickupLocation(button,pickup){
 }
 function addressInputs(){
   return [...document.querySelectorAll('#pickup,#dropoff,[id^="stop"]')].filter(element=>element.tagName==='INPUT');
+}
+function completeAddress(value){
+  const text=String(value||'').trim();
+  return /^\d+[a-z]?\s+/i.test(text)
+    && /\b(?:AZ|Arizona)\b/i.test(text)
+    && /\b\d{5}(?:-\d{4})?(?:\s*,?\s*(?:USA|United States(?: of America)?))?\s*$/i.test(text);
 }
 function installAddressAutocomplete(){
   addressInputs().forEach(inputElement=>{
@@ -220,20 +236,24 @@ async function calculateDistance(){
   const pickup=pickupElement?.value.trim()||'';
   const dropoff=dropoffElement?.value.trim()||'';
   const stops=state.active?.multi?[...state.stops]:[];
-  const ready=state.active?.multi?pickup.length>4&&stops.length>=2&&stops.every(value=>value.trim().length>4):pickup.length>4&&dropoff.length>4;
-  if(!ready)return;
+  const ready=state.active?.multi
+    ? completeAddress(pickup)&&stops.length>=2&&stops.every(completeAddress)
+    : completeAddress(pickup)&&completeAddress(dropoff);
+  if(!ready){
+    const status=document.querySelector('#distance-status');
+    if(status)status.innerHTML='<strong class="text-slate-800">Complete every address to verify mileage.</strong><span class="mt-1 block">Use a house number, street direction and type, city, Arizona, and ZIP code.</span>';
+    return;
+  }
   const status=document.querySelector('#distance-status');
   const coordinateElements=state.active?.multi
     ? [pickupElement,...document.querySelectorAll('[id^="stop"]')]
     : [pickupElement,dropoffElement];
-  const selectedCoordinates=coordinateElements.every(element=>Number.isFinite(Number(element?.dataset.lon))&&Number.isFinite(Number(element?.dataset.lat)));
-  const coordinates=selectedCoordinates?coordinateElements.map(element=>[Number(element.dataset.lon),Number(element.dataset.lat)]):undefined;
   if(status)status.innerHTML='<span class="font-semibold text-slate-800">Calculating driving mileage…</span>';
   distanceRequest?.abort();
   const controller=new AbortController();
   distanceRequest=controller;
   try{
-    const response=await fetch('/api/delivery-distance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceKey:state.serviceKey,fields:{pickup,dropoff},stops,coordinates}),signal:controller.signal});
+    const response=await fetch('/api/delivery-distance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceKey:state.serviceKey,fields:{pickup,dropoff},stops}),signal:controller.signal});
     const responseText=await response.text();
     let data;
     try{
@@ -242,15 +262,16 @@ async function calculateDistance(){
       throw new Error(`Mileage service is temporarily unavailable (HTTP ${response.status}).`);
     }
     if(!response.ok)throw new Error(data.message||'Mileage could not be calculated.');
-    if(Array.isArray(data.labels)&&Array.isArray(data.coordinates)){
+    const verifiedLabels=Array.isArray(data.verifiedAddresses)?data.verifiedAddresses:data.labels;
+    if(Array.isArray(verifiedLabels)&&Array.isArray(data.coordinates)){
       coordinateElements.forEach((element,index)=>{
         const resolvedCoordinates=data.coordinates[index];
-        if(!element||!data.labels[index]||!Array.isArray(resolvedCoordinates))return;
-        element.value=data.labels[index];
+        if(!element||!verifiedLabels[index]||!Array.isArray(resolvedCoordinates))return;
+        element.value=verifiedLabels[index];
         element.dataset.verified='true';
         element.dataset.lon=String(resolvedCoordinates[0]);
         element.dataset.lat=String(resolvedCoordinates[1]);
-        if(element.id.startsWith('stop'))state.stops[Number(element.id.replace('stop',''))]=data.labels[index];
+        if(element.id.startsWith('stop'))state.stops[Number(element.id.replace('stop',''))]=verifiedLabels[index];
       });
     }
     state.distance=data;
@@ -297,57 +318,120 @@ function installPricing(service){
   document.querySelector('#f button[type="submit"]').before(summary);
   const automaticZone=document.querySelector('#price-zone');
   if(automaticZone&&!service.route)automaticZone.closest('div').classList.add('hidden');
-  document.querySelector('#f').addEventListener('change',()=>{updateEstimate();renderDistanceCard(state.distance)});
+  const formElement=document.querySelector('#f');
+  const refreshPrice=()=>{syncAfterHoursSelection();updateEstimate();renderDistanceCard(state.distance)};
+  formElement.addEventListener('change',refreshPrice);
+  formElement.addEventListener('input',event=>{if(event.target.matches('#date,#time'))refreshPrice()});
+  syncAfterHoursSelection();
   updateEstimate();
 }
 
-function updateEstimate(){
-  const totalElement=document.querySelector('#price-total');
-  const breakdown=document.querySelector('#price-breakdown');
-  if(!totalElement||!state.active)return;
-  if(state.active.custom){totalElement.textContent='Custom quote';breakdown.textContent='No payment is collected until the request is reviewed.';return}
+function scheduledAfterHours(date,time){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date||'')||!/^\d{2}:\d{2}/.test(time||''))return false;
+  const day=new Date(`${date}T12:00:00Z`).getUTCDay();
+  const [hours,minutes]=time.split(':').map(Number);
+  const totalMinutes=hours*60+minutes;
+  return day===0||day===6||totalMinutes<8*60||totalMinutes>=17*60;
+}
+function syncAfterHoursSelection(){
   const formElement=document.querySelector('#f');
-  const zone=formElement?.querySelector('#price-zone')?.selectedIndex||0;
-  const item=formElement?.querySelector('#type')?.value||'';
-  const itemFee=item==='Documents with signature'?7:(item==='Package'?10:(item==='Office supplies'?5:0));
+  if(!formElement||!state.active||state.active.custom)return;
+  const automatic=scheduledAfterHours(formElement.querySelector('#date')?.value,formElement.querySelector('#time')?.value);
+  if(state.active.route){
+    const hours=formElement.querySelector('#hours');
+    const windowAfterHours=formElement.querySelector('#window')?.value==='After hours';
+    if(!hours)return;
+    if(automatic||windowAfterHours){
+      if(hours.selectedIndex!==1)hours.dataset.autoAfterHours='true';
+      hours.selectedIndex=1;
+    }else if(hours.dataset.autoAfterHours==='true'){
+      hours.selectedIndex=0;
+      delete hours.dataset.autoAfterHours;
+    }
+  }else if(!state.active.rush){
+    const timing=formElement.querySelector('#price-timing');
+    if(!timing)return;
+    if(automatic){
+      if(timing.selectedIndex!==2)timing.dataset.autoAfterHours='true';
+      timing.selectedIndex=2;
+    }else if(timing.dataset.autoAfterHours==='true'){
+      timing.selectedIndex=0;
+      delete timing.dataset.autoAfterHours;
+    }
+  }
+}
+function itemHandlingFee(item){
+  return item==='Documents with signature'?7:(item==='Package'?10:(item==='Office supplies'?5:0));
+}
+function estimatePrice(){
+  const formElement=document.querySelector('#f');
+  if(!formElement||!state.active)return null;
+  if(state.active.custom)return {custom:true,total:0,parts:['No payment is collected until the request is reviewed.']};
+  const zone=formElement.querySelector('#price-zone')?.selectedIndex||0;
+  const item=formElement.querySelector('#type')?.value||'';
+  const handling=itemHandlingFee(item);
+  const automaticAfterHours=scheduledAfterHours(formElement.querySelector('#date')?.value,formElement.querySelector('#time')?.value);
   let total=0;
-  let parts=[];
+  const parts=[];
+  let custom=false;
   if(state.active.rush){
     const rush=formElement.querySelector('#price-timing').selectedIndex===0?20:0;
-    total=rushDistancePrices[zone]+rush+itemFee;
-    parts.push(`Distance $${rushDistancePrices[zone]}`,rush?'Rush $20':'Same Day included');
+    const base=rushDistancePrices[zone];
+    total=base+rush+handling+(automaticAfterHours?75:0);
+    if(automaticAfterHours)total=Math.max(125,total);
+    parts.push(`Distance $${base}`,rush?'Rush +$20':'Same Day included');
+    if(automaticAfterHours)parts.push('After hours +$75, $125 minimum');
   }else if(state.active.route){
-    const frequency=formElement.querySelector('#frequency').selectedIndex;
-    const base=[45,55,60][frequency];
-    if(zone===3){totalElement.textContent='Custom quote';breakdown.textContent='Routes over 15 miles, including Marana and Oro Valley, require route review.';return}
-    const distance=[0,15,30][zone];
-    const stops=[0,10,20,30][formElement.querySelector('#route-stops').selectedIndex];
-    const proof=formElement.querySelector('#proof').selectedIndex?7:0;
-    const after=formElement.querySelector('#hours').selectedIndex?75:0;
-    total=base+distance+stops+itemFee+proof+after;
-    if(after)total=Math.max(125,total);
-    parts.push(`Base route $${base}`,distance?`Distance +$${distance}`:'Distance included',stops?`Stops +$${stops}`:'Two stops included');
+    if(zone===3){custom=true}
+    else{
+      const frequency=formElement.querySelector('#frequency').selectedIndex;
+      const base=[45,55,60][frequency];
+      const distance=[0,15,30][zone];
+      const stops=[0,10,20,30][formElement.querySelector('#route-stops').selectedIndex];
+      const proof=formElement.querySelector('#proof').selectedIndex?7:0;
+      const afterHours=automaticAfterHours||formElement.querySelector('#window')?.value==='After hours'||formElement.querySelector('#hours').selectedIndex===1;
+      total=base+distance+stops+handling+proof+(afterHours?75:0);
+      if(afterHours)total=Math.max(125,total);
+      parts.push(`Base route $${base}`,distance?`Distance +$${distance}`:'Distance included',stops?`Stops +$${stops}`:'Two stops included');
+      if(proof)parts.push('Signed proof +$7');
+      if(afterHours)parts.push('After hours +$75, $125 minimum');
+    }
   }else{
     const timing=formElement.querySelector('#price-timing').selectedIndex;
-    const afterHours=timing===2;
-    const routeBase=timing===1?plannedDistancePrices[zone]:sameDayDistancePrices[zone];
-    total=routeBase+itemFee+(afterHours?75:0);
+    const afterHours=automaticAfterHours||timing===2;
+    const base=timing===1?plannedDistancePrices[zone]:sameDayDistancePrices[zone];
+    total=base+handling+(afterHours?75:0);
     if(afterHours)total=Math.max(125,total);
-    parts.push(`Route $${routeBase}`,timing===1?'Planned delivery':afterHours?'After hours +$75':'Same Day');
+    parts.push(`Route $${base}`,timing===1?'Planned delivery':afterHours?'After hours +$75, $125 minimum':'Same Day');
     if(state.active.multi){
       const extraStops=Math.max(0,state.stops.length-2)*10;
       total+=extraStops;
       if(extraStops)parts.push(`Extra stops +$${extraStops}`);
     }
   }
-  if(itemFee)parts.push(`Item handling +$${itemFee}`);else parts.push('Item included');
-  totalElement.textContent=`$${total.toFixed(2)}`;
-  breakdown.textContent=parts.join(' · ');
+  if(handling)parts.push(`Item handling +$${handling}`);else parts.push('Item included');
+  return {custom,total,parts};
+}
+function updateEstimate(){
+  const totalElement=document.querySelector('#price-total');
+  const breakdown=document.querySelector('#price-breakdown');
+  if(!totalElement||!state.active)return;
+  const estimate=estimatePrice();
+  if(!estimate)return;
+  if(estimate.custom){
+    totalElement.textContent='Custom quote';
+    breakdown.textContent=state.active.route?'Routes over 15 miles require route review.':estimate.parts.join(' · ');
+    return;
+  }
+  totalElement.textContent=`$${estimate.total.toFixed(2)}`;
+  breakdown.textContent=estimate.parts.join(' · ');
 }
 function submit(e){
   e.preventDefault();
   const formElement=e.currentTarget;
   if(!formElement.checkValidity()){formElement.reportValidity();return}
+  syncAfterHoursSelection();
+  updateEstimate();
   if(!state.active.custom){
     const status=document.querySelector('#distance-status');
     if(!state.distance){
@@ -493,7 +577,9 @@ function restoreRequestDraft(draft){
     const status=document.querySelector('#distance-status');
     if(status)status.innerHTML=`<strong class="text-brand">${draft.distance.miles} verified driving miles</strong><span class="mt-1 block">Mileage will be verified again before checkout.</span>`;
   }
+  syncAfterHoursSelection();
   updateEstimate();
+  renderDistanceCard(state.distance);
 }
 
 function completeRequest(draft=null){

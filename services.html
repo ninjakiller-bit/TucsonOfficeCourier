@@ -21,7 +21,7 @@ function requestProgress(step){
   const steps=['Details','Review','Checkout'];
   return `<div class="mb-7 flex items-center" aria-label="Delivery request progress">${steps.map((label,index)=>{const number=index+1;const active=number===step;const complete=number<step;return `${index?'<span class="mx-2 h-px flex-1 bg-slate-300"></span>':''}<span class="flex items-center gap-2 text-xs font-semibold ${active||complete?'text-brand':'text-slate-400'}"><b class="flex h-6 w-6 items-center justify-center rounded-full border ${active||complete?'border-brand bg-orange-50':'border-slate-300'}">${complete?'✓':number}</b><span class="hidden sm:inline">${label}</span></span>`}).join('')}</div>`;
 }
-function form(){let s=state.active;state.distance=null;title.textContent=s.t;let addresses=s.multi?`<fieldset><legend class="mb-4 text-lg font-extrabold">Route addresses</legend>${input('pickup','Pickup address')}<div class="mt-5 flex items-center justify-between"><h3 class="font-semibold">Delivery stops</h3><button id="add" type="button" class="rounded-lg border border-brand px-3 py-2 text-sm font-bold text-brand">Add another stop</button></div><div id="stops" class="mt-3 space-y-3"></div></fieldset>`:`<fieldset><legend class="mb-4 text-lg font-extrabold">Where is this delivery going?</legend><div class="grid gap-4 sm:grid-cols-2">${input('pickup','Pickup address')}${input('dropoff','Drop-off address')}</div></fieldset>`;let details=s.custom?`<div>${input('item','What service do you need?')}</div>`:`<fieldset id="package-details" class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Package details</legend><div class="grid gap-4 sm:grid-cols-2">${select('type','What are we moving?',['Documents or records','Envelope or mail pouch','Documents with signature','Office supplies','Package'])}${input('weight','Estimated weight in pounds','number',true,'min="0.1" max="10" step="0.1"')}</div><p class="mt-3 text-sm text-slate-500">Packages entered through the quick-order form are limited to 10 lb.</p></fieldset>`;let route=s.route?`<fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Route schedule</legend><div class="grid gap-4 sm:grid-cols-2">${select('frequency','How often is this route needed?',['Daily, Monday through Friday — $45 per route','Weekly — $55 per route','Custom schedule — from $60'])}${select('window','Preferred pickup window',['8 AM–10 AM','10 AM–12 PM','12 PM–2 PM','2 PM–5 PM','After hours'])}</div></fieldset>`:'';content.innerHTML=`${requestProgress(1)}<form id="f" class="space-y-6" novalidate>${addresses}<div id="distance-status" class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600" role="status" aria-live="polite">Choose verified pickup and drop-off addresses to calculate driving mileage automatically.</div><fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Preferred date and pickup time</legend><div class="grid gap-4 sm:grid-cols-2">${input('date','Preferred date','date','true','min="'+new Date().toISOString().split('T')[0]+'"')}${input('time','Preferred pickup time','time')}</div></fieldset>${route}${details}<div class="border-t border-slate-200 pt-6"><label class="mb-1.5 block text-sm font-semibold" for="notes">Special instructions</label><textarea id="notes" name="notes" rows="4" maxlength="500" class="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-brand focus:ring-4 focus:ring-orange-100"></textarea><p class="mt-2 text-xs text-slate-500">Examples: front desk delivery, call on arrival, access instructions, or fragile handling.</p></div><fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Contact details</legend><div class="grid gap-4 sm:grid-cols-2">${input('name','Contact name')}${input('phone','Phone number','tel',true,'inputmode="tel" autocomplete="tel"') }</div><div class="mt-4">${input('email','Email address','email',true,'autocomplete="email"')}</div></fieldset><button type="submit" class="w-full rounded-lg bg-brand px-5 py-3.5 font-bold text-white shadow hover:bg-orange-500">Continue to review →</button></form>`;installPickupLocationButton();installAddressFormatHint();installDistanceCard();installAfterHoursNotice();if(s.multi){stopUI();document.querySelector('#add').onclick=()=>{state.stops.push('');stopUI()}}installPricing(s);installAddressAutocomplete();document.querySelector('#f').onsubmit=submit}
+function form(){let s=state.active;state.distance=null;title.textContent=s.t;let addresses=s.multi?`<fieldset><legend class="mb-4 text-lg font-extrabold">Route addresses</legend>${input('pickup','Pickup address')}<div class="mt-5 flex items-center justify-between"><h3 class="font-semibold">Delivery stops</h3><button id="add" type="button" class="rounded-lg border border-brand px-3 py-2 text-sm font-bold text-brand">Add another stop</button></div><div id="stops" class="mt-3 space-y-3"></div></fieldset>`:`<fieldset><legend class="mb-4 text-lg font-extrabold">Where is this delivery going?</legend><div class="grid gap-4 sm:grid-cols-2">${input('pickup','Pickup address')}${input('dropoff','Drop-off address')}</div></fieldset>`;let details=s.custom?`<div>${input('item','What service do you need?')}</div>`:`<fieldset id="package-details" class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Package details</legend><div class="grid gap-4 sm:grid-cols-2">${select('type','What are we moving?',['Documents or records','Envelope or mail pouch','Documents with signature','Office supplies','Package'])}${input('weight','Estimated weight in pounds','number',true,'min="0.1" max="10" step="0.1"')}</div><p class="mt-3 text-sm text-slate-500">Packages entered through the quick-order form are limited to 10 lb.</p></fieldset>`;let route=s.route?`<fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Route schedule</legend><div class="grid gap-4 sm:grid-cols-2">${select('frequency','How often is this route needed?',['Daily, Monday through Friday — $45 per route','Weekly — $55 per route','Custom schedule — from $60'])}${select('window','Preferred pickup window',['8 AM–10 AM','10 AM–12 PM','12 PM–2 PM','2 PM–5 PM','After hours'])}</div></fieldset>`:'';content.innerHTML=`${requestProgress(1)}<form id="f" class="space-y-6" novalidate>${addresses}<div id="distance-status" class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600" role="status" aria-live="polite">Choose verified pickup and drop-off addresses to calculate driving mileage automatically.</div><fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Preferred date and pickup time</legend><div class="grid gap-4 sm:grid-cols-2">${input('date','Preferred date','date','true','min="'+new Date().toISOString().split('T')[0]+'"')}${input('time','Preferred pickup time','time')}</div></fieldset>${route}${details}<div class="border-t border-slate-200 pt-6"><label class="mb-1.5 block text-sm font-semibold" for="notes">Special instructions</label><textarea id="notes" name="notes" rows="4" maxlength="500" class="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-brand focus:ring-4 focus:ring-orange-100"></textarea><p class="mt-2 text-xs text-slate-500">Examples: front desk delivery, call on arrival, access instructions, or fragile handling.</p></div><fieldset class="border-t border-slate-200 pt-6"><legend class="mb-4 text-lg font-extrabold">Contact details</legend><div class="grid gap-4 sm:grid-cols-2">${input('name','Contact name')}${input('phone','Phone number','tel',true,'inputmode="tel" autocomplete="tel"') }</div><div class="mt-4">${input('email','Email address','email',true,'autocomplete="email"')}</div></fieldset><button type="submit" class="w-full rounded-lg bg-brand px-5 py-3.5 font-bold text-white shadow hover:bg-orange-500">Continue to review →</button></form>`;installPickupLocationButton();installAddressFormatHint();installDistanceVerificationButton();installDistanceCard();installAfterHoursNotice();if(s.multi){stopUI();document.querySelector('#add').onclick=()=>{state.stops.push('');stopUI()}}installPricing(s);installAddressAutocomplete();document.querySelector('#f').onsubmit=submit}
 
 const addressTimers=new WeakMap();
 const addressRequests=new WeakMap();
@@ -36,6 +36,17 @@ function installAddressFormatHint(){
   hint.className='mt-3 text-sm leading-5 text-slate-600';
   hint.innerHTML='<strong>Use the complete address:</strong> street number, direction, street name, street type, city, state, and ZIP.<br><span class="text-slate-500">Example: 2801 East Lee Street, Tucson, Arizona 85716. A verified suggestion will correct abbreviations and ZIP codes.</span>';
   fieldset.append(hint);
+}
+function installDistanceVerificationButton(){
+  const status=document.querySelector('#distance-status');
+  if(!status||document.querySelector('#verify-addresses'))return;
+  const button=document.createElement('button');
+  button.id='verify-addresses';
+  button.type='button';
+  button.className='w-full rounded-lg border-2 border-brand bg-white px-5 py-3 font-bold text-brand transition hover:bg-orange-50 focus:outline-none focus:ring-4 focus:ring-orange-100';
+  button.textContent='Verify addresses and calculate miles';
+  status.insertAdjacentElement('beforebegin',button);
+  button.addEventListener('click',()=>calculateDistance(true));
 }
 function installDistanceCard(){
   const status=document.querySelector('#distance-status');
@@ -118,6 +129,27 @@ function useCurrentPickupLocation(button,pickup){
 function addressInputs(){
   return [...document.querySelectorAll('#pickup,#dropoff,[id^="stop"]')].filter(element=>element.tagName==='INPUT');
 }
+function clearAddressFieldError(inputElement){
+  if(!inputElement)return;
+  inputElement.removeAttribute('aria-invalid');
+  inputElement.classList.remove('border-red-500','ring-4','ring-red-100');
+  inputElement.parentElement.querySelector('[data-address-error]')?.remove();
+}
+function clearAddressFieldErrors(){
+  addressInputs().forEach(clearAddressFieldError);
+}
+function showAddressFieldError(inputElement,message){
+  if(!inputElement)return;
+  clearAddressFieldError(inputElement);
+  inputElement.setAttribute('aria-invalid','true');
+  inputElement.classList.add('border-red-500','ring-4','ring-red-100');
+  const error=document.createElement('p');
+  error.dataset.addressError='true';
+  error.className='mt-2 text-sm font-semibold text-red-700';
+  error.textContent=message;
+  inputElement.parentElement.append(error);
+  inputElement.focus({preventScroll:true});
+}
 function completeAddress(value){
   const text=String(value||'').trim();
   return /^\d+[a-z]?\s+/i.test(text)
@@ -138,6 +170,7 @@ function installAddressAutocomplete(){
     results.setAttribute('role','listbox');
     inputElement.insertAdjacentElement('afterend',results);
     inputElement.addEventListener('input',()=>{
+      clearAddressFieldError(inputElement);
       state.distance=null;
       distanceRequest?.abort();
       inputElement.dataset.verified='';
@@ -205,7 +238,7 @@ async function loadAddressSuggestions(inputElement,results){
 function showAddressSuggestions(inputElement,results,suggestions){
     results.innerHTML=suggestions.map((suggestion,index)=>`<button type="button" role="option" data-index="${index}" class="block min-h-[48px] w-full border-b border-slate-100 px-4 py-3 text-left text-sm leading-5 last:border-0 hover:bg-orange-50 focus:bg-orange-50">${escapeHtml(suggestion.label)}</button>`).join('');
     if(!results.innerHTML){
-      results.innerHTML='<p class="px-4 py-3 text-sm text-slate-600">No nearby Arizona address found. Add the city and ZIP code, then try again.</p>';
+      results.innerHTML='<p class="px-4 py-3 text-sm text-slate-600"><strong class="block text-red-700">No exact delivery address found.</strong><span class="mt-1 block">Check the house number and ZIP code. The street may be real even when that particular house number is not.</span></p>';
       results.classList.remove('hidden');
       return;
     }
@@ -230,24 +263,32 @@ function scheduleDistance(delay=500){
   clearTimeout(distanceTimer);
   distanceTimer=setTimeout(calculateDistance,delay);
 }
-async function calculateDistance(){
+async function calculateDistance(force=false){
   const pickupElement=document.querySelector('#pickup');
   const dropoffElement=document.querySelector('#dropoff');
   const pickup=pickupElement?.value.trim()||'';
   const dropoff=dropoffElement?.value.trim()||'';
   const stops=state.active?.multi?[...state.stops]:[];
+  const coordinateElements=state.active?.multi
+    ? [pickupElement,...document.querySelectorAll('[id^="stop"]')]
+    : [pickupElement,dropoffElement];
   const ready=state.active?.multi
     ? completeAddress(pickup)&&stops.length>=2&&stops.every(completeAddress)
     : completeAddress(pickup)&&completeAddress(dropoff);
   if(!ready){
     const status=document.querySelector('#distance-status');
     if(status)status.innerHTML='<strong class="text-slate-800">Complete every address to verify mileage.</strong><span class="mt-1 block">Use a house number, street direction and type, city, Arizona, and ZIP code.</span>';
+    if(force){
+      const incompleteElement=coordinateElements.find(element=>element&&!completeAddress(element.value));
+      showAddressFieldError(incompleteElement,'Enter the complete address, including Arizona and a five-digit ZIP code.');
+      incompleteElement?.scrollIntoView({behavior:'smooth',block:'center'});
+    }
     return;
   }
   const status=document.querySelector('#distance-status');
-  const coordinateElements=state.active?.multi
-    ? [pickupElement,...document.querySelectorAll('[id^="stop"]')]
-    : [pickupElement,dropoffElement];
+  const verifyButton=document.querySelector('#verify-addresses');
+  clearAddressFieldErrors();
+  if(verifyButton){verifyButton.disabled=true;verifyButton.textContent='Verifying addresses and calculating miles…'}
   if(status)status.innerHTML='<span class="font-semibold text-slate-800">Calculating driving mileage…</span>';
   distanceRequest?.abort();
   const controller=new AbortController();
@@ -261,7 +302,11 @@ async function calculateDistance(){
     }catch{
       throw new Error(`Mileage service is temporarily unavailable (HTTP ${response.status}).`);
     }
-    if(!response.ok)throw new Error(data.message||'Mileage could not be calculated.');
+    if(!response.ok){
+      const apiError=new Error(data.message||'Mileage could not be calculated.');
+      apiError.failedAddressIndex=Number.isInteger(data.failedAddressIndex)?data.failedAddressIndex:null;
+      throw apiError;
+    }
     const verifiedLabels=Array.isArray(data.verifiedAddresses)?data.verifiedAddresses:data.labels;
     if(Array.isArray(verifiedLabels)&&Array.isArray(data.coordinates)){
       coordinateElements.forEach((element,index)=>{
@@ -295,7 +340,14 @@ async function calculateDistance(){
     state.distance=null;
     const distanceCard=document.querySelector('#distance-zone-card');
     if(distanceCard){distanceCard.classList.add('hidden');distanceCard.innerHTML=''}
+    if(Number.isInteger(error.failedAddressIndex)){
+      const failedElement=coordinateElements[error.failedAddressIndex];
+      showAddressFieldError(failedElement,error.message);
+      failedElement?.scrollIntoView({behavior:'smooth',block:'center'});
+    }
     if(status)status.innerHTML=`<strong class="text-red-700">Mileage not verified.</strong><span class="mt-1 block">${escapeHtml(error.message)}</span>`;
+  }finally{
+    if(verifyButton){verifyButton.disabled=false;verifyButton.textContent='Verify addresses and calculate miles'}
   }
 }
 

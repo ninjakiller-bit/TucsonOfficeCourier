@@ -390,7 +390,15 @@ async function geocodeAddress(address) {
 }
 
 async function routeAddresses(addresses) {
-  const geocoded = await Promise.all(addresses.map(geocodeAddress));
+  const geocoded = [];
+  for (let index = 0; index < addresses.length; index += 1) {
+    try {
+      geocoded.push(await geocodeAddress(addresses[index]));
+    } catch (error) {
+      error.addressIndex = index;
+      throw error;
+    }
+  }
   const data = await orsRequest(
     "https://api.openrouteservice.org/v2/directions/driving-car",
     {
@@ -548,15 +556,16 @@ async function handleDistance(request, response) {
     return;
   }
 
+  let requestBody = null;
   try {
-    const body = await readJsonBody(request);
-    const addresses = deliveryAddresses(body);
+    requestBody = await readJsonBody(request);
+    const addresses = deliveryAddresses(requestBody);
     if (addresses.length < 2 || addresses.some((value) => value.length < 5)) {
       sendJson(response, 400, { ok: false, message: "Enter a complete pickup and drop-off address." });
       return;
     }
     const route = await routeAddresses(addresses);
-    const serviceKey = cleanText(body?.serviceKey, 30);
+    const serviceKey = cleanText(requestBody?.serviceKey, 30);
     const customQuote = route.zoneIndex === 10 || (serviceKey === "routes" && route.zoneIndex > 2);
     sendJson(response, 200, {
       ok: true,
@@ -570,11 +579,22 @@ async function handleDistance(request, response) {
   } catch (error) {
     const status = error.message === "REQUEST_TOO_LARGE" ? 413 : 422;
     const addressFormat = error.message === "ADDRESS_FORMAT";
+    const bodyServiceKey = cleanText(requestBody?.serviceKey, 30);
+    const failedAddressIndex = Number.isInteger(error.addressIndex) ? error.addressIndex : null;
+    const failedAddressName = failedAddressIndex === null
+      ? "address"
+      : failedAddressIndex === 0
+        ? "pickup address"
+        : bodyServiceKey === "multi"
+          ? `stop ${failedAddressIndex} address`
+          : "drop-off address";
     sendJson(response, status, {
       ok: false,
+      failedAddressIndex,
+      failedAddressName,
       message: addressFormat
-        ? "Enter each complete address like: 2801 East Lee Street, Tucson, Arizona 85716."
-        : "We could not match one of those street addresses. Check the house number, street type, city, state, and ZIP code."
+        ? `Enter the complete ${failedAddressName} like: 2801 East Lee Street, Tucson, Arizona 85716.`
+        : `We could not verify the ${failedAddressName}. Check the house number, street direction and type, city, state, and ZIP code.`
     });
   }
 }

@@ -271,6 +271,8 @@ async function calculateDistance(){
         element.dataset.verified='true';
         element.dataset.lon=String(resolvedCoordinates[0]);
         element.dataset.lat=String(resolvedCoordinates[1]);
+        element.setAttribute('aria-expanded','false');
+        element.parentElement.querySelector('.address-results')?.classList.add('hidden');
         if(element.id.startsWith('stop'))state.stops[Number(element.id.replace('stop',''))]=verifiedLabels[index];
       });
     }

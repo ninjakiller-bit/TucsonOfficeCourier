@@ -3,6 +3,15 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import {
+  closeDatabase,
+  databaseConfigured,
+  initializeDatabase,
+  listOrders,
+  markOrderEmailSent,
+  storePaidOrder,
+  updateOrderStatus
+} from "./database.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const port = Number(process.env.PORT || 10000);
@@ -13,6 +22,8 @@ const stripeKey = process.env.STRIPE_SECRET_KEY || "";
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 const orsKey = process.env.OPENROUTESERVICE_API_KEY || "";
 const configuredBaseUrl = (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+const adminUsername = process.env.ADMIN_USERNAME || "";
+const adminPassword = process.env.ADMIN_PASSWORD || "";
 const rateLimit = new Map();
 const geocodeCache = new Map();
 const autocompleteCache = new Map();
@@ -68,6 +79,63 @@ function securityHeaders(contentType = "text/plain; charset=utf-8") {
 function sendJson(response, status, payload) {
   response.writeHead(status, securityHeaders("application/json; charset=utf-8"));
   response.end(JSON.stringify(payload));
+}
+
+function sendAdminJson(response, status, payload) {
+  response.writeHead(status, {
+    ...securityHeaders("application/json; charset=utf-8"),
+    "Cache-Control": "no-store, private"
+  });
+  response.end(JSON.stringify(payload));
+}
+
+function secureTextEqual(actual, expected) {
+  const actualBuffer = Buffer.from(String(actual));
+  const expectedBuffer = Buffer.from(String(expected));
+  return actualBuffer.length === expectedBuffer.length
+    && timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
+function validAdminAuthorization(request) {
+  const authorization = String(request.headers.authorization || "");
+  if (!authorization.startsWith("Basic ")) return false;
+  try {
+    const decoded = Buffer.from(authorization.slice(6), "base64").toString("utf8");
+    const separator = decoded.indexOf(":");
+    if (separator < 1) return false;
+    return secureTextEqual(decoded.slice(0, separator), adminUsername)
+      && secureTextEqual(decoded.slice(separator + 1), adminPassword);
+  } catch {
+    return false;
+  }
+}
+
+function requireAdmin(request, response, apiRequest = false) {
+  if (!adminUsername || !adminPassword) {
+    if (apiRequest) {
+      sendAdminJson(response, 503, { ok: false, message: "The private dashboard is not configured yet." });
+    } else {
+      response.writeHead(503, {
+        ...securityHeaders("text/plain; charset=utf-8"),
+        "Cache-Control": "no-store"
+      });
+      response.end("The private dashboard is not configured yet.");
+    }
+    return false;
+  }
+  if (validAdminAuthorization(request)) return true;
+  const rateAllowed = allowedByRateLimit(clientAddress(request), 20, "admin-login");
+  const status = rateAllowed ? 401 : 429;
+  const headers = {
+    ...securityHeaders(apiRequest ? "application/json; charset=utf-8" : "text/plain; charset=utf-8"),
+    "Cache-Control": "no-store",
+    ...(rateAllowed ? { "WWW-Authenticate": "Basic realm=\"Tucson Office Courier Orders\", charset=\"UTF-8\"" } : {})
+  };
+  response.writeHead(status, headers);
+  response.end(apiRequest
+    ? JSON.stringify({ ok: false, message: rateAllowed ? "Administrator sign-in is required." : "Too many sign-in attempts. Try again later." })
+    : rateAllowed ? "Administrator sign-in is required." : "Too many sign-in attempts. Try again later.");
+  return false;
 }
 
 function cleanText(value, maximum) {
@@ -686,6 +754,23 @@ function checkoutAmount(body, route) {
   return { amountCents: Math.round(total * 100), description: parts.join(" · ") };
 }
 
+function checkoutTimingLabel(body) {
+  const fields = body?.fields || {};
+  const pricing = body?.pricing || {};
+  const serviceKey = cleanText(body?.serviceKey, 30);
+  let label = "Same Day";
+  if (serviceKey === "rush") {
+    label = integerIndex(pricing.timingIndex, 1) === 0 ? "Rush" : "Same Day";
+  } else if (serviceKey === "routes") {
+    label = cleanText(fields.window, 80) || "Scheduled route";
+  } else {
+    label = ["Same Day", "Planned delivery", "After hours"][integerIndex(pricing.timingIndex, 2)];
+  }
+  return scheduledAfterHours(fields) && !/after hours/i.test(label)
+    ? `${label} (automatic after-hours pricing)`
+    : label;
+}
+
 async function createStripeCheckout(request, response) {
   if (!stripeKey) {
     sendJson(response, 503, {
@@ -729,6 +814,7 @@ async function createStripeCheckout(request, response) {
     parameters.set("line_items[0][price_data][unit_amount]", String(price.amountCents));
     parameters.set("line_items[0][quantity]", "1");
     parameters.set("metadata[request_id]", requestId);
+    parameters.set("metadata[service_key]", serviceKey);
     parameters.set("metadata[service]", serviceNames[serviceKey]);
     parameters.set("metadata[pickup]", cleanText(fields.pickup, 450));
     parameters.set("metadata[dropoff]", cleanText(serviceKey === "multi" ? body.stops.join(" | ") : fields.dropoff, 450));
@@ -738,6 +824,10 @@ async function createStripeCheckout(request, response) {
     parameters.set("metadata[contact_phone]", cleanText(fields.phone, 80));
     parameters.set("metadata[notes]", cleanText(fields.notes, 450));
     parameters.set("metadata[driving_miles]", String(route.miles));
+    parameters.set("metadata[item_type]", cleanText(fields.type, 160));
+    parameters.set("metadata[item_weight]", cleanText(fields.weight, 40));
+    parameters.set("metadata[delivery_timing]", checkoutTimingLabel(body));
+    parameters.set("metadata[price_description]", cleanText(price.description, 450));
 
     const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
@@ -810,16 +900,20 @@ async function handleStripeWebhook(request, response) {
       return;
     }
     const event = JSON.parse(rawBody.toString("utf8"));
-    if (processedStripeEvents.has(event.id)) {
+    if (!databaseConfigured() && processedStripeEvents.has(event.id)) {
       sendJson(response, 200, { received: true });
       return;
     }
-    processedStripeEvents.add(event.id);
 
     if (event.type === "checkout.session.completed" && event.data?.object?.payment_status === "paid") {
       const session = event.data.object;
       const metadata = session.metadata || {};
-      await sendEmail({
+      const storedOrder = databaseConfigured() ? await storePaidOrder(event, session) : null;
+      if (storedOrder?.email_sent_at) {
+        sendJson(response, 200, { received: true });
+        return;
+      }
+      const emailSent = await sendEmail({
         to: recipient,
         replyTo: session.customer_details?.email || "",
         subject: `Paid Tucson Office Courier request ${metadata.request_id || session.client_reference_id}`,
@@ -838,6 +932,13 @@ async function handleStripeWebhook(request, response) {
           <p><strong>Special instructions:</strong> ${escapeHtml(metadata.notes || "None")}</p>
         `
       });
+      if (storedOrder && emailSent) await markOrderEmailSent(storedOrder.id);
+      if (!databaseConfigured()) {
+        processedStripeEvents.add(event.id);
+        if (processedStripeEvents.size > 5000) {
+          processedStripeEvents.delete(processedStripeEvents.values().next().value);
+        }
+      }
     }
     sendJson(response, 200, { received: true });
   } catch {
@@ -873,6 +974,111 @@ async function handleCheckoutStatus(request, response) {
   }
 }
 
+async function handleAdminOrders(request, response) {
+  if (!databaseConfigured()) {
+    sendAdminJson(response, 503, { ok: false, message: "The order database has not been connected yet." });
+    return;
+  }
+  try {
+    const url = new URL(request.url, "http://localhost");
+    const status = cleanText(url.searchParams.get("status"), 30);
+    const search = cleanText(url.searchParams.get("search"), 120);
+    const result = await listOrders({ status, search });
+    sendAdminJson(response, 200, { ok: true, ...result });
+  } catch (error) {
+    console.error("Admin order list error", error.message);
+    sendAdminJson(response, 500, { ok: false, message: "The orders could not be loaded. Please try again." });
+  }
+}
+
+async function handleAdminStatusUpdate(request, response, requestId) {
+  if (!databaseConfigured()) {
+    sendAdminJson(response, 503, { ok: false, message: "The order database has not been connected yet." });
+    return;
+  }
+  try {
+    const body = await readJsonBody(request);
+    const status = cleanText(body?.status, 30);
+    const result = await updateOrderStatus(cleanText(requestId, 40), status);
+    sendAdminJson(response, 200, { ok: true, order: result });
+  } catch (error) {
+    const invalid = error.message === "INVALID_ORDER_STATUS";
+    const missing = error.message === "ORDER_NOT_FOUND";
+    sendAdminJson(response, invalid ? 400 : missing ? 404 : 500, {
+      ok: false,
+      message: invalid
+        ? "Choose a valid delivery status."
+        : missing
+          ? "That delivery request was not found."
+          : "The delivery status could not be updated. Please try again."
+    });
+  }
+}
+
+async function syncRecentStripeOrders() {
+  if (!databaseConfigured()) throw new Error("DATABASE_NOT_CONFIGURED");
+  if (!stripeKey) throw new Error("STRIPE_NOT_CONFIGURED");
+
+  let startingAfter = "";
+  let imported = 0;
+  for (let page = 0; page < 5; page += 1) {
+    const parameters = new URLSearchParams({ limit: "100" });
+    if (startingAfter) parameters.set("starting_after", startingAfter);
+    const stripeResponse = await fetch(`https://api.stripe.com/v1/checkout/sessions?${parameters}`, {
+      headers: { Authorization: `Bearer ${stripeKey}` }
+    });
+    const responseText = await stripeResponse.text();
+    let body = {};
+    try {
+      body = JSON.parse(responseText);
+    } catch {
+      throw new Error("STRIPE_RESPONSE_INVALID");
+    }
+    if (!stripeResponse.ok) {
+      console.error("Stripe order import error", {
+        status: stripeResponse.status,
+        type: cleanText(body?.error?.type, 100),
+        code: cleanText(body?.error?.code, 100)
+      });
+      throw new Error("STRIPE_IMPORT_FAILED");
+    }
+    const sessions = Array.isArray(body.data) ? body.data : [];
+    for (const session of sessions) {
+      if (session.payment_status !== "paid") continue;
+      const requestId = cleanText(session.metadata?.request_id || session.client_reference_id, 40);
+      if (!requestId.startsWith("TOC-")) continue;
+      const order = await storePaidOrder({ id: `sync_${session.id}`, created: session.created }, session);
+      await markOrderEmailSent(order.id);
+      imported += 1;
+    }
+    if (!body.has_more || sessions.length === 0) break;
+    startingAfter = sessions[sessions.length - 1].id;
+  }
+  return imported;
+}
+
+async function handleAdminStripeSync(_request, response) {
+  if (!allowedByRateLimit(clientAddress(_request), 5, "admin-stripe-sync")) {
+    return sendAdminJson(response, 429, { message: "Please wait before importing Stripe orders again." });
+  }
+  try {
+    const imported = await syncRecentStripeOrders();
+    sendAdminJson(response, 200, {
+      message: imported === 1 ? "1 paid Stripe order was imported." : `${imported} paid Stripe orders were imported.`,
+      imported
+    });
+  } catch (error) {
+    console.error("Stripe order import failed", error);
+    sendAdminJson(response, 503, {
+      message: error.message === "DATABASE_NOT_CONFIGURED"
+        ? "The order database is not connected yet."
+        : error.message === "STRIPE_NOT_CONFIGURED"
+          ? "Stripe is not connected yet."
+          : "Stripe orders could not be imported right now."
+    });
+  }
+}
+
 async function serveStatic(request, response) {
   const requestedPath = new URL(request.url, "http://localhost").pathname;
   const pathname = requestedPath === "/" ? "/index.html" : requestedPath;
@@ -892,7 +1098,9 @@ async function serveStatic(request, response) {
     const file = await readFile(filePath);
     response.writeHead(200, {
       ...securityHeaders(contentType),
-      "Cache-Control": contentType.startsWith("text/html") ? "no-cache" : "public, max-age=86400"
+      "Cache-Control": pathname === "/admin.html"
+        ? "no-store, private"
+        : contentType.startsWith("text/html") ? "no-cache" : "public, max-age=86400"
     });
     if (request.method === "HEAD") {
       response.end();
@@ -907,6 +1115,28 @@ async function serveStatic(request, response) {
 
 const server = http.createServer(async (request, response) => {
   const pathname = new URL(request.url, "http://localhost").pathname;
+  const adminPage = pathname === "/admin" || pathname === "/admin.html";
+  const adminApi = pathname.startsWith("/api/admin/");
+
+  if ((adminPage || adminApi) && !requireAdmin(request, response, adminApi)) return;
+  if (request.method === "GET" && pathname === "/admin") {
+    response.writeHead(302, { Location: "/admin.html", "Cache-Control": "no-store" });
+    response.end();
+    return;
+  }
+  if (request.method === "GET" && pathname === "/api/admin/orders") {
+    await handleAdminOrders(request, response);
+    return;
+  }
+  if (request.method === "POST" && pathname === "/api/admin/sync-stripe") {
+    await handleAdminStripeSync(request, response);
+    return;
+  }
+  const statusRoute = pathname.match(/^\/api\/admin\/orders\/([^/]+)\/status$/);
+  if (request.method === "PATCH" && statusRoute) {
+    await handleAdminStatusUpdate(request, response, statusRoute[1]);
+    return;
+  }
 
   if (request.method === "POST" && pathname === "/api/contact") {
     await handleContact(request, response);
@@ -941,10 +1171,27 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
-  response.writeHead(405, { ...securityHeaders(), Allow: "GET, HEAD, POST" });
+  response.writeHead(405, { ...securityHeaders(), Allow: "GET, HEAD, POST, PATCH" });
   response.end("Method not allowed");
 });
+
+try {
+  if (await initializeDatabase()) console.log("Order database ready");
+  else console.warn("Order database is not configured; paid orders will only send email notifications");
+} catch (error) {
+  console.error("Order database initialization failed", error.message);
+}
 
 server.listen(port, "0.0.0.0", () => {
   console.log(`Tucson Office Courier server listening on port ${port}`);
 });
+
+async function shutdown() {
+  server.close(async () => {
+    await closeDatabase();
+    process.exit(0);
+  });
+}
+
+process.once("SIGTERM", shutdown);
+process.once("SIGINT", shutdown);

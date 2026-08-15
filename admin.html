@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="description" content="Private Tucson Office Courier order dashboard.">
+  <title>Order Dashboard | Tucson Office Courier</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config={theme:{extend:{colors:{brand:'#ea580c',ink:'#0f172a'},fontFamily:{sans:['Inter','ui-sans-serif','system-ui','sans-serif']}}}}
+  </script>
+</head>
+<body class="min-h-screen bg-slate-100 font-sans text-ink antialiased">
+  <div class="bg-brand px-4 py-2 text-center text-xs font-bold tracking-wide text-white">PRIVATE OPERATIONS DASHBOARD</div>
+  <header class="border-b border-slate-200 bg-white">
+    <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+      <div class="flex items-center gap-3">
+        <span class="flex h-11 w-11 items-center justify-center rounded-full bg-orange-100 text-2xl" aria-hidden="true">🚚</span>
+        <div>
+          <p class="text-xl font-extrabold tracking-tight">Tucson Office Courier</p>
+          <p class="text-sm text-slate-500">Paid delivery requests</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <span id="last-updated" class="text-xs text-slate-500" aria-live="polite"></span>
+        <button id="sync-stripe" type="button" class="inline-flex min-h-[44px] items-center rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-bold text-brand transition hover:border-brand hover:bg-orange-100 focus:outline-none focus:ring-4 focus:ring-orange-100">Import Stripe orders</button>
+        <a href="/services.html" class="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-brand hover:text-brand">Open public website</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p class="text-xs font-extrabold tracking-[.16em] text-brand">ORDER MANAGEMENT</p>
+        <h1 class="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">Delivery requests</h1>
+      </div>
+      <button id="refresh" type="button" class="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-ink px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-4 focus:ring-slate-300">Refresh orders</button>
+    </div>
+
+    <section class="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Order summary">
+      <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-sm font-semibold text-slate-500">New orders</p>
+        <p id="stat-new" class="mt-2 text-3xl font-extrabold">—</p>
+      </article>
+      <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-sm font-semibold text-slate-500">In progress</p>
+        <p id="stat-active" class="mt-2 text-3xl font-extrabold">—</p>
+      </article>
+      <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-sm font-semibold text-slate-500">Delivered</p>
+        <p id="stat-delivered" class="mt-2 text-3xl font-extrabold">—</p>
+      </article>
+      <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-sm font-semibold text-slate-500">Paid order value</p>
+        <p id="stat-paid" class="mt-2 text-3xl font-extrabold text-brand">—</p>
+      </article>
+    </section>
+
+    <section class="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="filters-heading">
+      <h2 id="filters-heading" class="sr-only">Filter orders</h2>
+      <form id="filters" class="grid gap-4 md:grid-cols-[1fr_220px_auto]">
+        <div>
+          <label for="search" class="mb-1.5 block text-sm font-semibold">Search orders</label>
+          <input id="search" type="search" autocomplete="off" placeholder="Request number, customer, phone, email, or address" class="min-h-[48px] w-full rounded-lg border border-slate-300 px-4 py-3 outline-none transition focus:border-brand focus:ring-4 focus:ring-orange-100">
+        </div>
+        <div>
+          <label for="status" class="mb-1.5 block text-sm font-semibold">Delivery status</label>
+          <select id="status" class="min-h-[48px] w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-brand focus:ring-4 focus:ring-orange-100">
+            <option value="">All statuses</option>
+            <option>New</option>
+            <option>Accepted</option>
+            <option>Picked Up</option>
+            <option>Delivered</option>
+            <option>Cancelled</option>
+          </select>
+        </div>
+        <button type="submit" class="min-h-[48px] self-end rounded-lg bg-brand px-6 py-3 font-bold text-white transition hover:bg-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-100">Apply filters</button>
+      </form>
+    </section>
+
+    <div id="notice" class="mt-6 hidden rounded-xl border px-4 py-3 text-sm" role="status" aria-live="polite"></div>
+    <section id="orders" class="mt-6 space-y-4" aria-label="Paid delivery orders"></section>
+    <div id="empty" class="mt-6 hidden rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
+      <div class="text-4xl" aria-hidden="true">📭</div>
+      <h2 class="mt-4 text-xl font-extrabold">No matching orders</h2>
+      <p class="mt-2 text-slate-500">Paid delivery requests will appear here after Stripe confirms payment.</p>
+    </div>
+  </main>
+
+  <template id="order-template">
+    <article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="grid gap-5 p-5 lg:grid-cols-[1fr_auto] lg:items-start sm:p-6">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 data-field="request" class="text-lg font-extrabold tracking-tight"></h2>
+            <span data-field="status-badge" class="rounded-full px-2.5 py-1 text-xs font-bold"></span>
+          </div>
+          <p data-field="service" class="mt-1 font-semibold text-slate-700"></p>
+          <p data-field="schedule" class="mt-2 text-sm text-slate-500"></p>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row lg:flex-col lg:items-end">
+          <strong data-field="amount" class="text-2xl font-extrabold text-brand"></strong>
+          <label class="text-sm font-semibold" data-status-label>
+            <span class="sr-only">Update delivery status</span>
+            <select data-field="status" class="min-h-[44px] rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:border-brand focus:ring-4 focus:ring-orange-100">
+              <option>New</option>
+              <option>Accepted</option>
+              <option>Picked Up</option>
+              <option>Delivered</option>
+              <option>Cancelled</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="grid gap-4 border-t border-slate-100 bg-slate-50 px-5 py-4 text-sm md:grid-cols-3 sm:px-6">
+        <div><span class="block font-semibold text-slate-500">Customer</span><span data-field="customer" class="mt-1 block whitespace-pre-line font-medium"></span></div>
+        <div><span class="block font-semibold text-slate-500">Pickup</span><span data-field="pickup" class="mt-1 block whitespace-pre-line font-medium"></span></div>
+        <div><span class="block font-semibold text-slate-500">Drop-off</span><span data-field="dropoff" class="mt-1 block whitespace-pre-line font-medium"></span></div>
+      </div>
+      <div data-field="details" class="hidden border-t border-slate-200 px-5 py-5 sm:px-6">
+        <dl class="grid gap-x-8 gap-y-4 text-sm md:grid-cols-2"></dl>
+      </div>
+      <button data-field="toggle" type="button" class="flex min-h-[48px] w-full items-center justify-between border-t border-slate-200 px-5 py-3 text-left text-sm font-bold text-slate-700 transition hover:bg-orange-50 hover:text-brand sm:px-6" aria-expanded="false">
+        <span>View complete order</span><span aria-hidden="true">＋</span>
+      </button>
+    </article>
+  </template>
+
+  <script>
+    const state={orders:[],loading:false,search:'',status:''};
+    const statuses=['New','Accepted','Picked Up','Delivered','Cancelled'];
+    const ordersElement=document.querySelector('#orders');
+    const emptyElement=document.querySelector('#empty');
+    const noticeElement=document.querySelector('#notice');
+    const refreshButton=document.querySelector('#refresh');
+    const syncButton=document.querySelector('#sync-stripe');
+    const lastUpdated=document.querySelector('#last-updated');
+    const template=document.querySelector('#order-template');
+
+    function money(cents,currency='usd'){
+      return new Intl.NumberFormat('en-US',{style:'currency',currency:String(currency).toUpperCase()}).format(Number(cents||0)/100);
+    }
+    function dateTime(value){
+      const date=new Date(value);
+      return Number.isNaN(date.getTime())?'Unknown':new Intl.DateTimeFormat('en-US',{dateStyle:'medium',timeStyle:'short',timeZone:'America/Phoenix'}).format(date);
+    }
+    function text(value,fallback='Not provided'){
+      const normalized=String(value??'').trim();
+      return normalized||fallback;
+    }
+    function statusClasses(status){
+      return {
+        'New':'bg-orange-100 text-orange-800',
+        'Accepted':'bg-blue-100 text-blue-800',
+        'Picked Up':'bg-violet-100 text-violet-800',
+        'Delivered':'bg-emerald-100 text-emerald-800',
+        'Cancelled':'bg-slate-200 text-slate-700'
+      }[status]||'bg-slate-100 text-slate-700';
+    }
+    function showNotice(message,type='error'){
+      noticeElement.className=`mt-6 rounded-xl border px-4 py-3 text-sm ${type==='success'?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-red-200 bg-red-50 text-red-800'}`;
+      noticeElement.textContent=message;
+      noticeElement.classList.remove('hidden');
+    }
+    function hideNotice(){noticeElement.classList.add('hidden')}
+    async function api(url,options={}){
+      const response=await fetch(url,{cache:'no-store',...options,headers:{...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}});
+      const responseText=await response.text();
+      let data={};
+      try{data=JSON.parse(responseText)}catch{data={message:'The server returned an unreadable response.'}}
+      if(!response.ok)throw new Error(data.message||'The request could not be completed.');
+      return data;
+    }
+    function setField(card,name,value){card.querySelector(`[data-field="${name}"]`).textContent=value}
+    function detailRow(label,value){
+      const wrapper=document.createElement('div');
+      const term=document.createElement('dt');
+      const description=document.createElement('dd');
+      term.className='font-semibold text-slate-500';
+      description.className='mt-1 whitespace-pre-wrap font-medium text-slate-900';
+      term.textContent=label;
+      description.textContent=text(value);
+      wrapper.append(term,description);
+      return wrapper;
+    }
+    function renderOrder(order){
+      const card=template.content.firstElementChild.cloneNode(true);
+      setField(card,'request',text(order.request_id));
+      setField(card,'service',text(order.service_name));
+      setField(card,'amount',money(order.amount_cents,order.currency));
+      setField(card,'schedule',`${text(order.pickup_date,'Date not provided')} at ${text(order.pickup_time,'time not provided')} · Paid ${dateTime(order.paid_at)}`);
+      setField(card,'customer',`${text(order.customer_name)}\n${text(order.customer_phone)}`);
+      setField(card,'pickup',text(order.pickup_address));
+      const dropoffs=Array.isArray(order.dropoff_addresses)?order.dropoff_addresses:[];
+      setField(card,'dropoff',dropoffs.length?dropoffs.join('\n'):'Not provided');
+      const badge=card.querySelector('[data-field="status-badge"]');
+      badge.textContent=order.status;
+      badge.className=`rounded-full px-2.5 py-1 text-xs font-bold ${statusClasses(order.status)}`;
+      const statusSelect=card.querySelector('[data-field="status"]');
+      statusSelect.value=statuses.includes(order.status)?order.status:'New';
+      statusSelect.setAttribute('aria-label',`Status for ${order.request_id}`);
+      statusSelect.addEventListener('change',()=>changeStatus(order,statusSelect,badge));
+      const details=card.querySelector('[data-field="details"]');
+      const detailList=details.querySelector('dl');
+      [
+        ['Email',order.customer_email],['Phone',order.customer_phone],
+        ['Driving distance',order.driving_miles===null?'Not provided':`${order.driving_miles} miles`],
+        ['Delivery timing',order.delivery_timing],['Item',order.item_type],
+        ['Weight',order.item_weight===null?'Not provided':`${order.item_weight} lb`],
+        ['Special instructions',order.special_instructions],['Price calculation',order.price_description],
+        ['Payment status',order.payment_status],['Last updated',dateTime(order.updated_at)]
+      ].forEach(([label,value])=>detailList.append(detailRow(label,value)));
+      const toggle=card.querySelector('[data-field="toggle"]');
+      toggle.addEventListener('click',()=>{
+        const expanded=toggle.getAttribute('aria-expanded')==='true';
+        toggle.setAttribute('aria-expanded',String(!expanded));
+        details.classList.toggle('hidden',expanded);
+        toggle.querySelector('span:first-child').textContent=expanded?'View complete order':'Hide complete order';
+        toggle.querySelector('span:last-child').textContent=expanded?'＋':'−';
+      });
+      return card;
+    }
+    function renderOrders(){
+      ordersElement.replaceChildren(...state.orders.map(renderOrder));
+      emptyElement.classList.toggle('hidden',state.orders.length>0);
+    }
+    function renderSummary(summary){
+      document.querySelector('#stat-new').textContent=Number(summary.new_count||0);
+      document.querySelector('#stat-active').textContent=Number(summary.active_count||0);
+      document.querySelector('#stat-delivered').textContent=Number(summary.delivered_count||0);
+      document.querySelector('#stat-paid').textContent=money(summary.paid_cents||0);
+    }
+    async function loadOrders({quiet=false}={}){
+      if(state.loading)return;
+      state.loading=true;
+      refreshButton.disabled=true;
+      refreshButton.textContent='Refreshing…';
+      if(!quiet)hideNotice();
+      try{
+        const params=new URLSearchParams();
+        if(state.status)params.set('status',state.status);
+        if(state.search)params.set('search',state.search);
+        const data=await api('/api/admin/orders?'+params);
+        state.orders=data.orders||[];
+        renderSummary(data.summary||{});
+        renderOrders();
+        lastUpdated.textContent=`Updated ${new Intl.DateTimeFormat('en-US',{timeStyle:'short'}).format(new Date())}`;
+      }catch(error){
+        showNotice(error.message);
+      }finally{
+        state.loading=false;
+        refreshButton.disabled=false;
+        refreshButton.textContent='Refresh orders';
+      }
+    }
+    async function changeStatus(order,select,badge){
+      const previous=order.status;
+      select.disabled=true;
+      hideNotice();
+      try{
+        await api(`/api/admin/orders/${encodeURIComponent(order.request_id)}/status`,{method:'PATCH',body:JSON.stringify({status:select.value})});
+        order.status=select.value;
+        badge.textContent=order.status;
+        badge.className=`rounded-full px-2.5 py-1 text-xs font-bold ${statusClasses(order.status)}`;
+        showNotice(`${order.request_id} is now ${order.status}.`,'success');
+        await loadOrders({quiet:true});
+      }catch(error){
+        select.value=previous;
+        showNotice(error.message);
+      }finally{
+        select.disabled=false;
+      }
+    }
+    async function importStripeOrders(){
+      if(state.loading)return;
+      syncButton.disabled=true;
+      syncButton.textContent='Importing…';
+      hideNotice();
+      try{
+        const result=await api('/api/admin/sync-stripe',{method:'POST'});
+        showNotice(result.message,'success');
+        await loadOrders({quiet:true});
+      }catch(error){
+        showNotice(error.message);
+      }finally{
+        syncButton.disabled=false;
+        syncButton.textContent='Import Stripe orders';
+      }
+    }
+    document.querySelector('#filters').addEventListener('submit',event=>{
+      event.preventDefault();
+      state.search=document.querySelector('#search').value.trim();
+      state.status=document.querySelector('#status').value;
+      loadOrders();
+    });
+    document.querySelector('#status').addEventListener('change',()=>{
+      state.status=document.querySelector('#status').value;
+      state.search=document.querySelector('#search').value.trim();
+      loadOrders();
+    });
+    refreshButton.addEventListener('click',()=>loadOrders());
+    syncButton.addEventListener('click',importStripeOrders);
+    loadOrders();
+    setInterval(()=>{if(!document.hidden)loadOrders({quiet:true})},60_000);
+  </script>
+</body>
+</html>
